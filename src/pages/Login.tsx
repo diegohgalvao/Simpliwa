@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { MessageCircle, Eye, EyeOff, ArrowRight, UserPlus } from 'lucide-react';
+import { MessageCircle, Eye, EyeOff, ArrowRight, UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
@@ -14,55 +14,99 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  const validateForm = () => {
+    if (!formData.email.trim()) {
+      setError('Email é obrigatório');
+      return false;
+    }
+
+    if (!formData.email.includes('@')) {
+      setError('Email inválido');
+      return false;
+    }
+
+    if (!formData.password.trim()) {
+      setError('Senha é obrigatória');
+      return false;
+    }
+
+    if (isSignUp) {
+      if (!formData.name.trim()) {
+        setError('Nome é obrigatório');
+        return false;
+      }
+
+      if (formData.password.length < 6) {
+        setError('A senha deve ter pelo menos 6 caracteres');
+        return false;
+      }
+
+      if (formData.password !== formData.confirmPassword) {
+        setError('As senhas não coincidem');
+        return false;
+      }
+    }
+
+    return true;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setSuccess('');
 
-    if (isSignUp) {
-      // Validações para cadastro
-      if (formData.password !== formData.confirmPassword) {
-        setError('As senhas não coincidem');
-        setIsLoading(false);
-        return;
-      }
+    if (!validateForm()) {
+      setIsLoading(false);
+      return;
+    }
 
-      if (formData.password.length < 6) {
-        setError('A senha deve ter pelo menos 6 caracteres');
-        setIsLoading(false);
-        return;
-      }
-
-      if (!formData.name.trim()) {
-        setError('Nome é obrigatório');
-        setIsLoading(false);
-        return;
-      }
-
-      const { error } = await signUp(formData.email, formData.password, formData.name);
-      
-      if (error) {
-        setError(error);
+    try {
+      if (isSignUp) {
+        console.log('Attempting sign up...');
+        const { error } = await signUp(formData.email, formData.password, formData.name);
+        
+        if (error) {
+          if (error.includes('Verifique seu email')) {
+            setSuccess(error);
+            setFormData({ email: formData.email, password: '', name: '', confirmPassword: '' });
+            setIsSignUp(false);
+          } else {
+            setError(error);
+          }
+        } else {
+          setSuccess('Conta criada com sucesso! Você pode fazer login agora.');
+          setFormData({ email: formData.email, password: '', name: '', confirmPassword: '' });
+          setIsSignUp(false);
+        }
       } else {
-        setError('');
-        alert('Conta criada com sucesso! Verifique seu email para confirmar a conta.');
-        setIsSignUp(false);
-        setFormData({ email: formData.email, password: '', name: '', confirmPassword: '' });
+        console.log('Attempting sign in...');
+        const { error } = await signIn(formData.email, formData.password);
+        
+        if (error) {
+          if (error.includes('Invalid login credentials')) {
+            setError('Email ou senha incorretos');
+          } else if (error.includes('Email not confirmed')) {
+            setError('Confirme seu email antes de fazer login');
+          } else {
+            setError(error);
+          }
+        } else {
+          // Wait a bit for auth state to update, then navigate
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 100);
+        }
       }
-    } else {
-      // Login
-      const { error } = await signIn(formData.email, formData.password);
-      
-      if (error) {
-        setError(error);
-      } else {
-        navigate('/dashboard');
-      }
+    } catch (error: any) {
+      console.error('Form submission error:', error);
+      setError('Erro inesperado. Tente novamente.');
     }
     
     setIsLoading(false);
@@ -73,6 +117,9 @@ const Login = () => {
       ...formData,
       [e.target.name]: e.target.value
     });
+    // Clear errors when user starts typing
+    if (error) setError('');
+    if (success) setSuccess('');
   };
 
   const demoAccounts = [
@@ -85,7 +132,28 @@ const Login = () => {
   const quickLogin = (email: string, password: string) => {
     setFormData({ ...formData, email, password });
     setIsSignUp(false);
+    setError('');
+    setSuccess('');
   };
+
+  const toggleMode = () => {
+    setIsSignUp(!isSignUp);
+    setError('');
+    setSuccess('');
+    setFormData({ email: '', password: '', name: '', confirmPassword: '' });
+  };
+
+  // Show loading if auth is loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary via-primary to-secondary flex items-center justify-center">
+        <div className="text-center text-white">
+          <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p>Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-primary to-secondary flex items-center justify-center p-4">
@@ -153,7 +221,7 @@ const Login = () => {
             {isSignUp && (
               <div>
                 <label htmlFor="name\" className="block text-sm font-medium text-gray-700 mb-2">
-                  Nome completo
+                  Nome completo *
                 </label>
                 <input
                   type="text"
@@ -170,7 +238,7 @@ const Login = () => {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email
+                Email *
               </label>
               <input
                 type="email"
@@ -186,7 +254,7 @@ const Login = () => {
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Senha
+                Senha *
               </label>
               <div className="relative">
                 <input
@@ -212,7 +280,7 @@ const Login = () => {
             {isSignUp && (
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirmar senha
+                  Confirmar senha *
                 </label>
                 <div className="relative">
                   <input
@@ -236,16 +304,26 @@ const Login = () => {
               </div>
             )}
 
+            {/* Error Message */}
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                {error}
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+                <span className="text-sm">{error}</span>
+              </div>
+            )}
+
+            {/* Success Message */}
+            {success && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center">
+                <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+                <span className="text-sm">{success}</span>
               </div>
             )}
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-secondary text-white py-3 rounded-lg font-semibold hover:bg-opacity-90 transition-all flex items-center justify-center group disabled:opacity-50"
+              className="w-full bg-secondary text-white py-3 rounded-lg font-semibold hover:bg-opacity-90 transition-all flex items-center justify-center group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -270,11 +348,7 @@ const Login = () => {
           {/* Toggle between login/signup */}
           <div className="mt-6 text-center">
             <button
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError('');
-                setFormData({ email: '', password: '', name: '', confirmPassword: '' });
-              }}
+              onClick={toggleMode}
               className="text-secondary hover:underline"
             >
               {isSignUp 
@@ -299,6 +373,18 @@ const Login = () => {
                     <div className="text-xs text-gray-500">{account.email}</div>
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Environment Check */}
+          {(!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) && (
+            <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center">
+                <AlertCircle className="h-5 w-5 text-yellow-600 mr-2" />
+                <div className="text-sm text-yellow-800">
+                  <strong>Configuração necessária:</strong> Configure as variáveis de ambiente do Supabase no arquivo .env
+                </div>
               </div>
             </div>
           )}
