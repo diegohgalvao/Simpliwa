@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { MessageCircle, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { MessageCircle, Eye, EyeOff, ArrowRight, UserPlus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    name: '',
+    confirmPassword: ''
+  });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const { login } = useAuth();
+  const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -18,17 +24,55 @@ const Login = () => {
     setIsLoading(true);
     setError('');
 
-    // Simular delay de autenticação
-    setTimeout(() => {
-      const success = login(email, password);
-      
-      if (success) {
-        navigate('/dashboard');
-      } else {
-        setError('Email ou senha incorretos');
+    if (isSignUp) {
+      // Validações para cadastro
+      if (formData.password !== formData.confirmPassword) {
+        setError('As senhas não coincidem');
+        setIsLoading(false);
+        return;
       }
-      setIsLoading(false);
-    }, 1000);
+
+      if (formData.password.length < 6) {
+        setError('A senha deve ter pelo menos 6 caracteres');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!formData.name.trim()) {
+        setError('Nome é obrigatório');
+        setIsLoading(false);
+        return;
+      }
+
+      const { error } = await signUp(formData.email, formData.password, formData.name);
+      
+      if (error) {
+        setError(error);
+      } else {
+        setError('');
+        alert('Conta criada com sucesso! Verifique seu email para confirmar a conta.');
+        setIsSignUp(false);
+        setFormData({ email: formData.email, password: '', name: '', confirmPassword: '' });
+      }
+    } else {
+      // Login
+      const { error } = await signIn(formData.email, formData.password);
+      
+      if (error) {
+        setError(error);
+      } else {
+        navigate('/dashboard');
+      }
+    }
+    
+    setIsLoading(false);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
   };
 
   const demoAccounts = [
@@ -39,8 +83,8 @@ const Login = () => {
   ];
 
   const quickLogin = (email: string, password: string) => {
-    setEmail(email);
-    setPassword(password);
+    setFormData({ ...formData, email, password });
+    setIsSignUp(false);
   };
 
   return (
@@ -62,12 +106,17 @@ const Login = () => {
           </div>
           
           <h1 className="text-4xl lg:text-5xl font-bold mb-6">
-            Acesse seu
-            <span className="block text-accent">Dashboard</span>
+            {isSignUp ? 'Crie sua conta' : 'Acesse seu'}
+            <span className="block text-accent">
+              {isSignUp ? 'gratuitamente' : 'Dashboard'}
+            </span>
           </h1>
           
           <p className="text-xl text-white/90 mb-8">
-            Gerencie sua empresa com dados em tempo real e relatórios completos.
+            {isSignUp 
+              ? 'Comece a gerenciar sua empresa pelo WhatsApp hoje mesmo.'
+              : 'Gerencie sua empresa com dados em tempo real e relatórios completos.'
+            }
           </p>
 
           {/* Features */}
@@ -86,18 +135,39 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Right Column - Login Form */}
+        {/* Right Column - Form */}
         <div className="bg-white rounded-3xl p-8 shadow-2xl">
           <div className="text-center mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Faça seu login
+              {isSignUp ? 'Criar conta' : 'Faça seu login'}
             </h2>
             <p className="text-gray-600">
-              Entre com suas credenciais para acessar o dashboard
+              {isSignUp 
+                ? 'Preencha os dados abaixo para criar sua conta'
+                : 'Entre com suas credenciais para acessar o dashboard'
+              }
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {isSignUp && (
+              <div>
+                <label htmlFor="name\" className="block text-sm font-medium text-gray-700 mb-2">
+                  Nome completo
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors"
+                  placeholder="Seu nome completo"
+                  required={isSignUp}
+                />
+              </div>
+            )}
+
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                 Email
@@ -105,8 +175,9 @@ const Login = () => {
               <input
                 type="email"
                 id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors"
                 placeholder="seu@email.com"
                 required
@@ -121,10 +192,11 @@ const Login = () => {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors pr-12"
-                  placeholder="Sua senha"
+                  placeholder={isSignUp ? 'Mínimo 6 caracteres' : 'Sua senha'}
                   required
                 />
                 <button
@@ -136,6 +208,33 @@ const Login = () => {
                 </button>
               </div>
             </div>
+
+            {isSignUp && (
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                  Confirmar senha
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors pr-12"
+                    placeholder="Confirme sua senha"
+                    required={isSignUp}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -152,37 +251,65 @@ const Login = () => {
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               ) : (
                 <>
-                  Entrar
-                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  {isSignUp ? (
+                    <>
+                      <UserPlus className="mr-2 h-5 w-5" />
+                      Criar Conta
+                    </>
+                  ) : (
+                    <>
+                      Entrar
+                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
                 </>
               )}
             </button>
           </form>
 
-          {/* Demo Accounts */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <h3 className="text-sm font-medium text-gray-700 mb-4">Contas de Demonstração:</h3>
-            <div className="space-y-2">
-              {demoAccounts.map((account, index) => (
-                <button
-                  key={index}
-                  onClick={() => quickLogin(account.email, account.password)}
-                  className="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <div className="text-sm font-medium text-gray-900">{account.role}</div>
-                  <div className="text-xs text-gray-500">{account.email}</div>
-                </button>
-              ))}
-            </div>
+          {/* Toggle between login/signup */}
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError('');
+                setFormData({ email: '', password: '', name: '', confirmPassword: '' });
+              }}
+              className="text-secondary hover:underline"
+            >
+              {isSignUp 
+                ? 'Já tem uma conta? Faça login'
+                : 'Não tem uma conta? Cadastre-se'
+              }
+            </button>
           </div>
 
+          {/* Demo Accounts - Only show for login */}
+          {!isSignUp && (
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <h3 className="text-sm font-medium text-gray-700 mb-4">Contas de Demonstração:</h3>
+              <div className="space-y-2">
+                {demoAccounts.map((account, index) => (
+                  <button
+                    key={index}
+                    onClick={() => quickLogin(account.email, account.password)}
+                    className="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <div className="text-sm font-medium text-gray-900">{account.role}</div>
+                    <div className="text-xs text-gray-500">{account.email}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="mt-6 text-center">
-            <button 
-              onClick={() => navigate('/')}
+            <Link 
+              to="/"
               className="text-secondary hover:underline text-sm"
             >
               ← Voltar para o site
-            </button>
+            </Link>
           </div>
         </div>
       </div>

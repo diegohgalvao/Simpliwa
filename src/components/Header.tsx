@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, MessageCircle } from 'lucide-react';
+import { Menu, X, MessageCircle, LogIn } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -16,6 +18,11 @@ const Header = () => {
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     element?.scrollIntoView({ behavior: 'smooth' });
+    setIsMenuOpen(false);
+  };
+
+  const handleLoginClick = () => {
+    navigate('/login');
     setIsMenuOpen(false);
   };
 
@@ -50,6 +57,19 @@ const Header = () => {
                 {item === 'precos' ? 'Preços' : item}
               </button>
             ))}
+            
+            <button
+              onClick={handleLoginClick}
+              className={`flex items-center px-4 py-2 rounded-full font-semibold transition-all transform hover:scale-105 ${
+                isScrolled 
+                  ? 'bg-primary text-white hover:bg-opacity-90' 
+                  : 'bg-white/10 backdrop-blur-sm text-white hover:bg-white/20'
+              }`}
+            >
+              <LogIn className="h-4 w-4 mr-2" />
+              Entrar
+            </button>
+            
             <button
               onClick={() => scrollToSection('teste-gratuito')}
               className="bg-secondary text-white px-6 py-2 rounded-full font-semibold hover:bg-opacity-90 transition-all transform hover:scale-105"
@@ -85,8 +105,15 @@ const Header = () => {
                 </button>
               ))}
               <button
+                onClick={handleLoginClick}
+                className="mx-4 mt-2 mb-2 bg-primary text-white px-6 py-3 rounded-full font-semibold text-center flex items-center justify-center"
+              >
+                <LogIn className="h-4 w-4 mr-2" />
+                Entrar
+              </button>
+              <button
                 onClick={() => scrollToSection('teste-gratuito')}
-                className="mx-4 mt-2 bg-secondary text-white px-6 py-3 rounded-full font-semibold text-center"
+                className="mx-4 bg-secondary text-white px-6 py-3 rounded-full font-semibold text-center"
               >
                 Teste Grátis
               </button>
