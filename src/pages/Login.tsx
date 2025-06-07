@@ -164,19 +164,6 @@ const Login = () => {
     }
   };
 
-  const demoAccounts = [
-    { email: 'admin@simpliwa.com.br', password: 'admin123', role: 'Super Admin' },
-    { email: 'maria@boutiqueelegance.com.br', password: 'maria123', role: 'Admin - Boutique Elegance' },
-    { email: 'joao@santosconstrucoes.com.br', password: 'joao123', role: 'Admin - Santos Construções' },
-    { email: 'ana@beautycenter.com.br', password: 'ana123', role: 'Admin - Beauty Center' }
-  ];
-
-  const quickLogin = (email: string, password: string) => {
-    setFormData({ ...formData, email, password });
-    setIsSignUp(false);
-    clearMessages();
-  };
-
   const toggleMode = () => {
     setIsSignUp(!isSignUp);
     clearMessages();
@@ -335,7 +322,7 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {isSignUp && (
               <div>
-                <label htmlFor="name\" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                   Nome completo *
                 </label>
                 <input
@@ -464,25 +451,6 @@ const Login = () => {
               }
             </button>
           </div>
-
-          {/* Demo Accounts - Only show for login */}
-          {!isSignUp && (
-            <div className="mt-8 pt-6 border-t border-gray-200">
-              <h3 className="text-sm font-medium text-gray-700 mb-4">Contas de Demonstração:</h3>
-              <div className="space-y-2">
-                {demoAccounts.map((account, index) => (
-                  <button
-                    key={index}
-                    onClick={() => quickLogin(account.email, account.password)}
-                    className="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <div className="text-sm font-medium text-gray-900">{account.role}</div>
-                    <div className="text-xs text-gray-500">{account.email}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Environment Check */}
           {(!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) && (
