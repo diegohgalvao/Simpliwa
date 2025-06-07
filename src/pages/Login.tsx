@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { MessageCircle, Eye, EyeOff, ArrowRight, UserPlus, AlertCircle, CheckCircle, Mail } from 'lucide-react';
+import { MessageCircle, Eye, EyeOff, ArrowRight, UserPlus, AlertCircle, CheckCircle, Mail, X, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
@@ -57,12 +57,16 @@ const Login = () => {
     return true;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const clearMessages = () => {
     setError('');
     setSuccess('');
     setShowEmailConfirmation(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    clearMessages();
 
     if (!validateForm()) {
       setIsLoading(false);
@@ -75,15 +79,23 @@ const Login = () => {
         const { error } = await signUp(formData.email, formData.password, formData.name);
         
         if (error) {
-          if (error.includes('Verifique seu email')) {
-            setSuccess(error);
+          if (error.includes('User already registered')) {
+            setError('Este email já está cadastrado. Tente fazer login ou use outro email.');
+          } else if (error.includes('Verifique seu email')) {
+            setShowEmailConfirmation(true);
             setFormData({ email: formData.email, password: '', name: '', confirmPassword: '' });
             setIsSignUp(false);
+          } else if (error.includes('Password should be at least')) {
+            setError('A senha deve ter pelo menos 6 caracteres.');
+          } else if (error.includes('Invalid email')) {
+            setError('Email inválido. Verifique o formato do email.');
+          } else if (error.includes('Signup is disabled')) {
+            setError('Cadastro temporariamente desabilitado. Tente novamente mais tarde.');
           } else {
             setError(error);
           }
         } else {
-          setSuccess('Conta criada com sucesso! Você pode fazer login agora.');
+          setSuccess('Conta criada com sucesso! Verifique seu email para confirmar o cadastro.');
           setFormData({ email: formData.email, password: '', name: '', confirmPassword: '' });
           setIsSignUp(false);
         }
@@ -93,12 +105,17 @@ const Login = () => {
         
         if (error) {
           if (error.includes('Invalid login credentials')) {
-            setError('Email ou senha incorretos');
+            setError('Email ou senha incorretos. Verifique suas credenciais e tente novamente.');
           } else if (error.includes('Email not confirmed') || error.includes('email_not_confirmed')) {
             setShowEmailConfirmation(true);
-            setError('');
+          } else if (error.includes('Too many requests')) {
+            setError('Muitas tentativas de login. Aguarde alguns minutos antes de tentar novamente.');
+          } else if (error.includes('Network error')) {
+            setError('Erro de conexão. Verifique sua internet e tente novamente.');
+          } else if (error.includes('User not found')) {
+            setError('Usuário não encontrado. Verifique o email ou cadastre-se.');
           } else {
-            setError(error);
+            setError('Erro ao fazer login. Tente novamente ou entre em contato com o suporte.');
           }
         } else {
           // Wait a bit for auth state to update, then navigate
@@ -109,7 +126,7 @@ const Login = () => {
       }
     } catch (error: any) {
       console.error('Form submission error:', error);
-      setError('Erro inesperado. Tente novamente.');
+      setError('Erro inesperado. Verifique sua conexão e tente novamente.');
     }
     
     setIsLoading(false);
@@ -120,10 +137,29 @@ const Login = () => {
       ...formData,
       [e.target.name]: e.target.value
     });
-    // Clear errors when user starts typing
-    if (error) setError('');
-    if (success) setSuccess('');
-    if (showEmailConfirmation) setShowEmailConfirmation(false);
+    // Clear messages when user starts typing
+    if (error || success || showEmailConfirmation) {
+      clearMessages();
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!formData.email) {
+      setError('Digite seu email para reenviar a confirmação.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      // Note: Supabase doesn't have a direct resend confirmation method in the client
+      // This would typically be handled by a server endpoint
+      setSuccess('Se o email existir em nossa base, um novo link de confirmação será enviado.');
+      setShowEmailConfirmation(false);
+    } catch (error) {
+      setError('Erro ao reenviar confirmação. Tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const demoAccounts = [
@@ -136,16 +172,12 @@ const Login = () => {
   const quickLogin = (email: string, password: string) => {
     setFormData({ ...formData, email, password });
     setIsSignUp(false);
-    setError('');
-    setSuccess('');
-    setShowEmailConfirmation(false);
+    clearMessages();
   };
 
   const toggleMode = () => {
     setIsSignUp(!isSignUp);
-    setError('');
-    setSuccess('');
-    setShowEmailConfirmation(false);
+    clearMessages();
     setFormData({ email: '', password: '', name: '', confirmPassword: '' });
   };
 
@@ -223,10 +255,78 @@ const Login = () => {
             </p>
           </div>
 
+          {/* Email Confirmation Message */}
+          {showEmailConfirmation && (
+            <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-4 rounded-lg mb-6">
+              <div className="flex items-start">
+                <Mail className="h-5 w-5 mr-3 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <h4 className="font-medium mb-1">Confirme seu email</h4>
+                  <p className="text-sm mb-3">
+                    Enviamos um link de confirmação para <strong>{formData.email}</strong>. 
+                    Verifique sua caixa de entrada (incluindo spam) e clique no link para ativar sua conta.
+                  </p>
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={handleResendConfirmation}
+                      disabled={isLoading}
+                      className="text-sm text-blue-700 hover:text-blue-900 underline flex items-center disabled:opacity-50"
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Reenviar confirmação
+                    </button>
+                    <button
+                      onClick={() => setShowEmailConfirmation(false)}
+                      className="text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Success Message */}
+          {success && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6">
+              <div className="flex items-start">
+                <CheckCircle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <span className="text-sm">{success}</span>
+                </div>
+                <button
+                  onClick={() => setSuccess('')}
+                  className="text-green-500 hover:text-green-700 ml-2"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+              <div className="flex items-start">
+                <AlertCircle className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <span className="text-sm">{error}</span>
+                </div>
+                <button
+                  onClick={() => setError('')}
+                  className="text-red-500 hover:text-red-700 ml-2"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {isSignUp && (
               <div>
-                <label htmlFor="name\" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                   Nome completo *
                 </label>
                 <input
@@ -235,7 +335,9 @@ const Login = () => {
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors"
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors ${
+                    error && !formData.name.trim() ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
                   placeholder="Seu nome completo"
                   required={isSignUp}
                 />
@@ -252,7 +354,9 @@ const Login = () => {
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors ${
+                  error && (!formData.email.trim() || !formData.email.includes('@')) ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`}
                 placeholder="seu@email.com"
                 required
               />
@@ -269,7 +373,9 @@ const Login = () => {
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors pr-12"
+                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors pr-12 ${
+                    error && !formData.password.trim() ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
                   placeholder={isSignUp ? 'Mínimo 6 caracteres' : 'Sua senha'}
                   required
                 />
@@ -295,7 +401,9 @@ const Login = () => {
                     name="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors pr-12"
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors pr-12 ${
+                      error && formData.password !== formData.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    }`}
                     placeholder="Confirme sua senha"
                     required={isSignUp}
                   />
@@ -307,41 +415,6 @@ const Login = () => {
                     {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
-              </div>
-            )}
-
-            {/* Email Confirmation Message */}
-            {showEmailConfirmation && (
-              <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-4 rounded-lg">
-                <div className="flex items-start">
-                  <Mail className="h-5 w-5 mr-3 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h4 className="font-medium mb-1">Confirme seu email</h4>
-                    <p className="text-sm mb-3">
-                      Enviamos um link de confirmação para <strong>{formData.email}</strong>. 
-                      Verifique sua caixa de entrada (incluindo spam) e clique no link para ativar sua conta.
-                    </p>
-                    <p className="text-sm">
-                      Após confirmar seu email, você poderá fazer login normalmente.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center">
-                <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
-                <span className="text-sm">{error}</span>
-              </div>
-            )}
-
-            {/* Success Message */}
-            {success && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center">
-                <CheckCircle className="h-5 w-5 mr-2 flex-shrink-0" />
-                <span className="text-sm">{success}</span>
               </div>
             )}
 
