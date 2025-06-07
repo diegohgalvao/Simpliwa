@@ -14,7 +14,9 @@ import {
   Package,
   UserCheck,
   Bell,
-  Crown
+  Crown,
+  Target,
+  TrendingUp
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -23,21 +25,31 @@ const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const menuItems = [
-    { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard, path: '/dashboard/overview' },
-    { id: 'vendas', label: 'Vendas', icon: ShoppingCart, path: '/dashboard/vendas' },
-    { id: 'produtos', label: 'Produtos', icon: Package, path: '/dashboard/produtos' },
-    { id: 'clientes', label: 'Clientes', icon: Users, path: '/dashboard/clientes' },
-    { id: 'mensagens', label: 'Mensagens', icon: MessageSquare, path: '/dashboard/mensagens' },
-    { id: 'equipe', label: 'Equipe', icon: UserCheck, path: '/dashboard/equipe' },
-    { id: 'relatorios', label: 'Relatórios', icon: BarChart3, path: '/dashboard/relatorios' },
-    { id: 'notificacoes', label: 'Notificações', icon: Bell, path: '/dashboard/notificacoes' },
-    ...(user?.profile?.role === 'super_admin' ? [
-      { id: 'empresas', label: 'Empresas', icon: Building2, path: '/dashboard/empresas' },
-      { id: 'usuarios', label: 'Usuários', icon: UserCog, path: '/dashboard/usuarios' }
-    ] : []),
-    { id: 'configuracoes', label: 'Configurações', icon: Settings, path: '/dashboard/configuracoes' }
-  ];
+  // Different menu items based on role
+  const getMenuItems = () => {
+    if (user?.profile?.role === 'super_admin') {
+      return [
+        { id: 'overview', label: 'Business Intelligence', icon: TrendingUp, path: '/dashboard/overview' },
+        { id: 'empresas', label: 'Análise de Empresas', icon: Building2, path: '/dashboard/empresas' },
+        { id: 'usuarios', label: 'Usuários do Sistema', icon: UserCog, path: '/dashboard/usuarios' },
+        { id: 'configuracoes', label: 'Configurações', icon: Settings, path: '/dashboard/configuracoes' }
+      ];
+    } else {
+      return [
+        { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard, path: '/dashboard/overview' },
+        { id: 'vendas', label: 'Vendas', icon: ShoppingCart, path: '/dashboard/vendas' },
+        { id: 'produtos', label: 'Produtos', icon: Package, path: '/dashboard/produtos' },
+        { id: 'clientes', label: 'Clientes', icon: Users, path: '/dashboard/clientes' },
+        { id: 'mensagens', label: 'Mensagens', icon: MessageSquare, path: '/dashboard/mensagens' },
+        { id: 'equipe', label: 'Equipe', icon: UserCheck, path: '/dashboard/equipe' },
+        { id: 'relatorios', label: 'Relatórios', icon: BarChart3, path: '/dashboard/relatorios' },
+        { id: 'notificacoes', label: 'Notificações', icon: Bell, path: '/dashboard/notificacoes' },
+        { id: 'configuracoes', label: 'Configurações', icon: Settings, path: '/dashboard/configuracoes' }
+      ];
+    }
+  };
+
+  const menuItems = getMenuItems();
 
   const handleCompanySwitch = (companyId: string) => {
     switchCompany(companyId);
@@ -87,7 +99,7 @@ const Sidebar: React.FC = () => {
           </div>
         </div>
 
-        {/* Company Selector */}
+        {/* Company Selector - Only for non-super-admin users */}
         {user?.profile?.role !== 'super_admin' && user?.companies && user.companies.length > 1 && (
           <div className="mt-3">
             <select
@@ -104,10 +116,17 @@ const Sidebar: React.FC = () => {
           </div>
         )}
 
-        {/* Current Company Display */}
-        {user?.currentCompany && (
+        {/* Current Company Display - Only for non-super-admin */}
+        {user?.profile?.role !== 'super_admin' && user?.currentCompany && (
           <div className="mt-2 text-xs text-gray-500">
             {user.currentCompany.name}
+          </div>
+        )}
+
+        {/* Super Admin Badge */}
+        {user?.profile?.role === 'super_admin' && (
+          <div className="mt-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs px-2 py-1 rounded-full text-center font-medium">
+            🔐 Acesso Total ao Sistema
           </div>
         )}
       </div>
@@ -131,6 +150,19 @@ const Sidebar: React.FC = () => {
             </li>
           ))}
         </ul>
+
+        {/* Super Admin Info Panel */}
+        {user?.profile?.role === 'super_admin' && (
+          <div className="mt-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center mb-2">
+              <Target className="h-4 w-4 text-yellow-600 mr-2" />
+              <span className="text-xs font-medium text-yellow-800">Modo Super Admin</span>
+            </div>
+            <p className="text-xs text-yellow-700">
+              Você tem acesso completo a todas as empresas e dados do sistema SimpliWa.
+            </p>
+          </div>
+        )}
       </nav>
 
       {/* Logout */}

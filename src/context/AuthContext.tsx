@@ -105,17 +105,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       try {
         if (profile.role === 'super_admin') {
-          // For super admin, get the first company as context
-          const { data: companies, error: companiesError } = await supabase
-            .from('companies')
-            .select('*')
-            .limit(1);
-          
-          if (companiesError) {
-            console.warn('Error fetching companies for super admin:', companiesError);
-          } else if (companies && companies.length > 0) {
-            currentCompany = companies[0];
-          }
+          // Super admin não deve estar atrelado a nenhuma empresa específica
+          // Não definir currentCompany para super admin
+          console.log('Super admin detected - no company assignment');
         } else {
           // For regular users, get their company memberships
           const { data: memberData, error: memberError } = await supabase
@@ -157,7 +149,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         email: supabaseUser.email!,
         profile,
         companies: companyMembers,
-        currentCompany
+        currentCompany: profile.role === 'super_admin' ? undefined : currentCompany
       };
 
       console.log('Auth user created:', authUser);
@@ -355,7 +347,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const switchCompany = (companyId: string) => {
-    if (!user) return;
+    if (!user || user.profile?.role === 'super_admin') {
+      // Super admin não deve ter empresa atual
+      return;
+    }
 
     const company = user.companies?.find(cm => cm.company_id === companyId)?.companies;
     if (company) {
