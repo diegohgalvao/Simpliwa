@@ -467,18 +467,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = async () => {
     setLoading(true);
     try {
-      await supabase.auth.signOut();
+      // First check if there's an active session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        // No valid session exists, just clear local state
+        console.log('No active session found, clearing local state');
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      // If session exists, attempt to sign out
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        // Handle specific error cases
+        if (error.message.includes('user_not_found') || 
+            error.message.includes('User from sub claim in JWT does not exist')) {
+          console.warn('User account not found during logout - clearing local session');
+        } else {
+          console.error('Error signing out:', error);
+        }
+      }
+      
+      // Always clear local state regardless of server response
       setUser(null);
     } catch (error: any) {
       const errorMessage = error?.message || String(error);
       if (errorMessage.includes('user_not_found') || 
           errorMessage.includes('User from sub claim in JWT does not exist')) {
         console.warn('User account not found during logout - clearing local session');
-        setUser(null);
       } else {
-        console.error('Error signing out:', error);
-        setUser(null);
+        console.error('Unexpected error signing out:', error);
       }
+      // Always clear local state
+      setUser(null);
     } finally {
       setLoading(false);
     }
