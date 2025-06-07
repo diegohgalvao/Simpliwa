@@ -217,8 +217,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Temporarily suppress console.error for expected Supabase auth errors
       const originalConsoleError = console.error;
       console.error = (...args: any[]) => {
-        // Check if this is a Supabase auth error we want to suppress
-        const errorString = args.join(' ');
+        // Convert all arguments to strings and check for suppressed keywords
+        const errorString = args.map(arg => {
+          if (typeof arg === 'object' && arg !== null) {
+            try {
+              return JSON.stringify(arg);
+            } catch {
+              return String(arg);
+            }
+          }
+          return String(arg);
+        }).join(' ');
+        
         if (errorString.includes('email_not_confirmed') || 
             errorString.includes('Invalid login credentials') ||
             errorString.includes('Supabase request failed') ||
@@ -285,8 +295,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Temporarily suppress console.error for expected Supabase auth errors
       const originalConsoleError = console.error;
       console.error = (...args: any[]) => {
-        // Check if this is a Supabase auth error we want to suppress
-        const errorString = args.join(' ');
+        // Convert all arguments to strings and check for suppressed keywords
+        const errorString = args.map(arg => {
+          if (typeof arg === 'object' && arg !== null) {
+            try {
+              return JSON.stringify(arg);
+            } catch {
+              return String(arg);
+            }
+          }
+          return String(arg);
+        }).join(' ');
+        
         if (errorString.includes('User already registered') || 
             errorString.includes('Supabase request failed') ||
             errorString.includes('400')) {
