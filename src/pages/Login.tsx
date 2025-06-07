@@ -546,7 +546,7 @@ const Login = () => {
             {currentStep === 'signup' && (
               <>
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="name\" className="block text-sm font-medium text-gray-700 mb-2">
                     Seu nome completo *
                   </label>
                   <input
