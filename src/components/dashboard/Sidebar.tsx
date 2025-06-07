@@ -15,8 +15,7 @@ import {
   UserCheck,
   Bell,
   Crown,
-  Target,
-  TrendingUp
+  Target
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -29,7 +28,6 @@ const Sidebar: React.FC = () => {
   const getMenuItems = () => {
     if (user?.profile?.role === 'super_admin') {
       return [
-        { id: 'business-intelligence', label: 'Business Intelligence', icon: TrendingUp, path: '/dashboard/business-intelligence' },
         { id: 'empresas', label: 'Análise de Empresas', icon: Building2, path: '/dashboard/empresas' },
         { id: 'usuarios', label: 'Usuários do Sistema', icon: UserCog, path: '/dashboard/usuarios' },
         { id: 'configuracoes', label: 'Configurações', icon: Settings, path: '/dashboard/configuracoes' }
