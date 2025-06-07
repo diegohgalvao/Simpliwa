@@ -221,7 +221,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const errorString = args.join(' ');
         if (errorString.includes('email_not_confirmed') || 
             errorString.includes('Invalid login credentials') ||
-            errorString.includes('Supabase request failed')) {
+            errorString.includes('Supabase request failed') ||
+            errorString.includes('Email not confirmed') ||
+            errorString.includes('400')) {
           // Suppress these expected errors from console
           return;
         }
@@ -286,7 +288,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Check if this is a Supabase auth error we want to suppress
         const errorString = args.join(' ');
         if (errorString.includes('User already registered') || 
-            errorString.includes('Supabase request failed')) {
+            errorString.includes('Supabase request failed') ||
+            errorString.includes('400')) {
           // Suppress these expected errors from console
           return;
         }
