@@ -9,7 +9,10 @@ import {
   UserCog,
   LogOut,
   MessageCircle,
-  ChevronDown
+  ShoppingCart,
+  Package,
+  UserCheck,
+  Bell
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -23,9 +26,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => 
 
   const menuItems = [
     { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
-    { id: 'analytics', label: 'Relatórios', icon: BarChart3 },
-    { id: 'messages', label: 'Mensagens', icon: MessageSquare },
+    { id: 'sales', label: 'Vendas', icon: ShoppingCart },
+    { id: 'products', label: 'Produtos', icon: Package },
     { id: 'customers', label: 'Clientes', icon: Users },
+    { id: 'messages', label: 'Mensagens', icon: MessageSquare },
+    { id: 'team', label: 'Equipe', icon: UserCheck },
+    { id: 'analytics', label: 'Relatórios', icon: BarChart3 },
+    { id: 'notifications', label: 'Notificações', icon: Bell },
     ...(user?.profile?.role === 'super_admin' ? [
       { id: 'companies', label: 'Empresas', icon: Building2 },
       { id: 'users', label: 'Usuários', icon: UserCog }
@@ -94,7 +101,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => 
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4">
+      <nav className="flex-1 p-4 overflow-y-auto">
         <ul className="space-y-2">
           {menuItems.map((item) => (
             <li key={item.id}>

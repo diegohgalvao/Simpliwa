@@ -8,25 +8,41 @@ import Customers from '../components/dashboard/Customers';
 import Companies from '../components/dashboard/Companies';
 import Users from '../components/dashboard/Users';
 import Settings from '../components/dashboard/Settings';
+import Sales from '../components/dashboard/Sales';
+import Products from '../components/dashboard/Products';
+import Team from '../components/dashboard/Team';
+import Notifications from '../components/dashboard/Notifications';
 
 const Dashboard = () => {
   const [activeSection, setActiveSection] = useState('overview');
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
 
-  if (!currentUser) {
-    return <div>Carregando...</div>;
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-secondary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
   const renderContent = () => {
     switch (activeSection) {
       case 'overview':
         return <Overview />;
-      case 'analytics':
-        return <Analytics />;
-      case 'messages':
-        return <Messages />;
+      case 'sales':
+        return <Sales />;
+      case 'products':
+        return <Products />;
       case 'customers':
         return <Customers />;
+      case 'messages':
+        return <Messages />;
+      case 'team':
+        return <Team />;
+      case 'analytics':
+        return <Analytics />;
+      case 'notifications':
+        return <Notifications />;
       case 'companies':
         return <Companies />;
       case 'users':
