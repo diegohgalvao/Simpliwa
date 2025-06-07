@@ -213,10 +213,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
+      
+      // Temporarily suppress console.error for expected Supabase auth errors
+      const originalConsoleError = console.error;
+      console.error = (...args: any[]) => {
+        // Check if this is a Supabase auth error we want to suppress
+        const errorString = args.join(' ');
+        if (errorString.includes('email_not_confirmed') || 
+            errorString.includes('Invalid login credentials') ||
+            errorString.includes('Supabase request failed')) {
+          // Suppress these expected errors from console
+          return;
+        }
+        // Log other errors normally
+        originalConsoleError.apply(console, args);
+      };
+
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+
+      // Restore original console.error
+      console.error = originalConsoleError;
 
       if (error) {
         setLoading(false);
@@ -251,6 +270,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log('Attempting to sign up user:', email);
       
+      // Temporarily suppress console.error for expected Supabase auth errors
+      const originalConsoleError = console.error;
+      console.error = (...args: any[]) => {
+        // Check if this is a Supabase auth error we want to suppress
+        const errorString = args.join(' ');
+        if (errorString.includes('User already registered') || 
+            errorString.includes('Supabase request failed')) {
+          // Suppress these expected errors from console
+          return;
+        }
+        // Log other errors normally
+        originalConsoleError.apply(console, args);
+      };
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -260,6 +293,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           },
         },
       });
+
+      // Restore original console.error
+      console.error = originalConsoleError;
 
       console.log('Sign up response:', { data, error });
 
