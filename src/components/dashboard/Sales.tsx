@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, Filter, Plus, Edit, Trash2, DollarSign, Calendar, User, Package, TrendingUp, Download } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -13,6 +13,7 @@ const Sales = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const hasInitialized = useRef(false);
 
   const [newSale, setNewSale] = useState({
     amount: '',
@@ -87,24 +88,28 @@ const Sales = () => {
   ];
 
   useEffect(() => {
-    fetchSales();
-  }, [user?.currentCompany?.id]);
+    // Só inicializar uma vez
+    if (!hasInitialized.current) {
+      hasInitialized.current = true;
+      fetchSales();
+    }
+  }, []);
 
   const fetchSales = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // If no company is selected, use mock data
+      // Se não há empresa selecionada, usar dados mock
       if (!user?.currentCompany?.id) {
         setSales(mockSales);
         setLoading(false);
         return;
       }
 
-      // Try to fetch from Supabase with timeout
+      // Tentar buscar do Supabase com timeout
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 5000)
+        setTimeout(() => reject(new Error('Timeout')), 3000)
       );
 
       const fetchPromise = supabase
@@ -122,7 +127,7 @@ const Sales = () => {
         console.warn('Supabase error, using mock data:', supabaseError);
         setSales(mockSales);
       } else {
-        setSales(data || mockSales);
+        setSales(data && data.length > 0 ? data : mockSales);
       }
     } catch (error) {
       console.warn('Error fetching sales, using mock data:', error);
@@ -150,7 +155,7 @@ const Sales = () => {
 
     try {
       if (user?.currentCompany?.id) {
-        // Try to insert into Supabase
+        // Tentar inserir no Supabase
         const { error } = await supabase
           .from('sales')
           .insert({
@@ -167,7 +172,7 @@ const Sales = () => {
         }
       }
 
-      // Always update local state
+      // Sempre atualizar estado local
       setSales([newSaleData, ...sales]);
       
       setNewSale({
@@ -180,7 +185,7 @@ const Sales = () => {
       setShowAddModal(false);
     } catch (error) {
       console.error('Error adding sale:', error);
-      // Still add to local state even if Supabase fails
+      // Ainda adicionar ao estado local mesmo se Supabase falhar
       setSales([newSaleData, ...sales]);
       setShowAddModal(false);
     }
@@ -201,11 +206,11 @@ const Sales = () => {
         }
       }
 
-      // Always update local state
+      // Sempre atualizar estado local
       setSales(sales.filter(sale => sale.id !== id));
     } catch (error) {
       console.error('Error deleting sale:', error);
-      // Still remove from local state
+      // Ainda remover do estado local
       setSales(sales.filter(sale => sale.id !== id));
     }
   };

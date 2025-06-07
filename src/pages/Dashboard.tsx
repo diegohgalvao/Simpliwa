@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/dashboard/Sidebar';
 import Overview from '../components/dashboard/Overview';
@@ -13,6 +13,9 @@ import Products from '../components/dashboard/Products';
 import Team from '../components/dashboard/Team';
 import Notifications from '../components/dashboard/Notifications';
 
+// Cache para manter os componentes montados
+const componentCache = new Map();
+
 const Dashboard = () => {
   const [activeSection, setActiveSection] = useState('overview');
   const { user } = useAuth();
@@ -25,40 +28,44 @@ const Dashboard = () => {
     );
   }
 
-  const renderContent = () => {
-    switch (activeSection) {
-      case 'overview':
-        return <Overview />;
-      case 'sales':
-        return <Sales />;
-      case 'products':
-        return <Products />;
-      case 'customers':
-        return <Customers />;
-      case 'messages':
-        return <Messages />;
-      case 'team':
-        return <Team />;
-      case 'analytics':
-        return <Analytics />;
-      case 'notifications':
-        return <Notifications />;
-      case 'companies':
-        return <Companies />;
-      case 'users':
-        return <Users />;
-      case 'settings':
-        return <Settings />;
-      default:
-        return <Overview />;
+  // Função para criar componente com cache
+  const createCachedComponent = useCallback((section: string, Component: React.ComponentType) => {
+    if (!componentCache.has(section)) {
+      componentCache.set(section, <Component key={section} />);
     }
-  };
+    return componentCache.get(section);
+  }, []);
+
+  // Memoizar todos os componentes para evitar re-renderização
+  const components = useMemo(() => ({
+    overview: createCachedComponent('overview', Overview),
+    sales: createCachedComponent('sales', Sales),
+    products: createCachedComponent('products', Products),
+    customers: createCachedComponent('customers', Customers),
+    messages: createCachedComponent('messages', Messages),
+    team: createCachedComponent('team', Team),
+    analytics: createCachedComponent('analytics', Analytics),
+    notifications: createCachedComponent('notifications', Notifications),
+    companies: createCachedComponent('companies', Companies),
+    users: createCachedComponent('users', Users),
+    settings: createCachedComponent('settings', Settings)
+  }), [createCachedComponent]);
 
   return (
     <div className="flex h-screen bg-gray-100">
       <Sidebar activeSection={activeSection} onSectionChange={setActiveSection} />
-      <main className="flex-1 overflow-auto">
-        {renderContent()}
+      <main className="flex-1 overflow-auto relative">
+        {/* Renderizar todos os componentes, mas mostrar apenas o ativo */}
+        {Object.entries(components).map(([section, component]) => (
+          <div
+            key={section}
+            className={`${
+              activeSection === section ? 'block' : 'hidden'
+            } h-full`}
+          >
+            {component}
+          </div>
+        ))}
       </main>
     </div>
   );
