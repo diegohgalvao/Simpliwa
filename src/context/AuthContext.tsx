@@ -214,10 +214,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       
-      // Temporarily suppress console.error for expected Supabase auth errors
+      // Suprimir erros específicos do Supabase no console
       const originalConsoleError = console.error;
       console.error = (...args: any[]) => {
-        // Convert all arguments to strings and check for suppressed keywords
+        // Converter todos os argumentos para strings e verificar palavras-chave
         const errorString = args.map(arg => {
           if (typeof arg === 'object' && arg !== null) {
             try {
@@ -229,15 +229,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return String(arg);
         }).join(' ');
         
+        // Suprimir erros específicos relacionados à confirmação de email
         if (errorString.includes('email_not_confirmed') || 
+            errorString.includes('Email not confirmed') ||
             errorString.includes('Invalid login credentials') ||
             errorString.includes('Supabase request failed') ||
-            errorString.includes('Email not confirmed') ||
-            errorString.includes('400')) {
-          // Suppress these expected errors from console
-          return;
+            (errorString.includes('400') && errorString.includes('auth'))) {
+          return; // Não mostrar no console
         }
-        // Log other errors normally
+        
+        // Mostrar outros erros normalmente
         originalConsoleError.apply(console, args);
       };
 
@@ -246,33 +247,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         password,
       });
 
-      // Restore original console.error
+      // Restaurar console.error original
       console.error = originalConsoleError;
 
       if (error) {
         setLoading(false);
         
-        // Handle specific error codes and messages
+        // Tratar códigos de erro específicos
         if (error.message.includes('Invalid login credentials')) {
           return { error: 'Email ou senha incorretos' };
         } else if (error.message.includes('Email not confirmed') || 
                    error.message.includes('email_not_confirmed') ||
                    (error as any).code === 'email_not_confirmed') {
           return { error: 'Email not confirmed' };
+        } else if (error.message.includes('Too many requests')) {
+          return { error: 'Muitas tentativas de login. Aguarde alguns minutos.' };
         } else {
           return { error: error.message };
         }
       }
 
-      // Don't set loading to false here, let the auth state change handle it
+      // Não definir loading como false aqui, deixar o auth state change lidar com isso
       return {};
     } catch (error: any) {
       setLoading(false);
       
-      // Check if the error contains email_not_confirmed in the response
-      if (error?.message?.includes('email_not_confirmed') || 
-          error?.code === 'email_not_confirmed' ||
-          (typeof error === 'string' && error.includes('email_not_confirmed'))) {
+      // Verificar se o erro contém email_not_confirmed na resposta
+      const errorStr = String(error);
+      if (errorStr.includes('email_not_confirmed') || 
+          errorStr.includes('Email not confirmed') ||
+          (error?.code === 'email_not_confirmed')) {
         return { error: 'Email not confirmed' };
       }
       
@@ -292,10 +296,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log('Attempting to sign up user:', email);
       
-      // Temporarily suppress console.error for expected Supabase auth errors
+      // Suprimir erros específicos do Supabase no console
       const originalConsoleError = console.error;
       console.error = (...args: any[]) => {
-        // Convert all arguments to strings and check for suppressed keywords
+        // Converter todos os argumentos para strings e verificar palavras-chave
         const errorString = args.map(arg => {
           if (typeof arg === 'object' && arg !== null) {
             try {
@@ -309,11 +313,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (errorString.includes('User already registered') || 
             errorString.includes('Supabase request failed') ||
-            errorString.includes('400')) {
-          // Suppress these expected errors from console
-          return;
+            (errorString.includes('400') && errorString.includes('auth'))) {
+          return; // Não mostrar no console
         }
-        // Log other errors normally
+        
+        // Mostrar outros erros normalmente
         originalConsoleError.apply(console, args);
       };
 
@@ -327,7 +331,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         },
       });
 
-      // Restore original console.error
+      // Restaurar console.error original
       console.error = originalConsoleError;
 
       console.log('Sign up response:', { data, error });

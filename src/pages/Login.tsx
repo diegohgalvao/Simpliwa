@@ -106,8 +106,10 @@ const Login = () => {
         if (error) {
           if (error.includes('Invalid login credentials')) {
             setError('Email ou senha incorretos. Verifique suas credenciais e tente novamente.');
-          } else if (error.includes('Email not confirmed') || error.includes('email_not_confirmed')) {
+          } else if (error === 'Email not confirmed') {
+            // Mostrar aviso específico para email não confirmado
             setShowEmailConfirmation(true);
+            setError(''); // Limpar erro para mostrar apenas o aviso de confirmação
           } else if (error.includes('Too many requests')) {
             setError('Muitas tentativas de login. Aguarde alguns minutos antes de tentar novamente.');
           } else if (error.includes('Network error')) {
@@ -261,11 +263,18 @@ const Login = () => {
               <div className="flex items-start">
                 <Mail className="h-5 w-5 mr-3 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
-                  <h4 className="font-medium mb-1">Confirme seu email</h4>
+                  <h4 className="font-medium mb-1">📧 Confirme seu email</h4>
                   <p className="text-sm mb-3">
-                    Enviamos um link de confirmação para <strong>{formData.email}</strong>. 
-                    Verifique sua caixa de entrada (incluindo spam) e clique no link para ativar sua conta.
+                    Seu email ainda não foi confirmado. Verifique sua caixa de entrada 
+                    (incluindo a pasta de spam) e clique no link de confirmação que enviamos para{' '}
+                    <strong>{formData.email}</strong>.
                   </p>
+                  <div className="bg-blue-100 p-3 rounded-lg mb-3">
+                    <p className="text-xs text-blue-700">
+                      <strong>💡 Dica:</strong> Se não encontrar o email, verifique a pasta de spam/lixo eletrônico. 
+                      Emails de confirmação às vezes são filtrados automaticamente.
+                    </p>
+                  </div>
                   <div className="flex items-center space-x-3">
                     <button
                       onClick={handleResendConfirmation}
@@ -326,7 +335,7 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {isSignUp && (
               <div>
-                <label htmlFor="name\" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                   Nome completo *
                 </label>
                 <input
