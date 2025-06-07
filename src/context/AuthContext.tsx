@@ -394,8 +394,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await supabase.auth.signOut();
       setUser(null);
-    } catch (error) {
-      console.error('Error signing out:', error);
+    } catch (error: any) {
+      // Check if this is the specific 'user_not_found' error
+      const errorMessage = error?.message || String(error);
+      if (errorMessage.includes('user_not_found') || 
+          errorMessage.includes('User from sub claim in JWT does not exist')) {
+        // This is expected when the user account has been deleted but the client still has a JWT
+        console.warn('User account not found during logout - clearing local session');
+        setUser(null);
+      } else {
+        // For other errors, log them normally
+        console.error('Error signing out:', error);
+        // Still clear the user state to ensure logout completes
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
