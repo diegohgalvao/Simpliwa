@@ -198,6 +198,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         } else {
           console.log('No initial session found');
+          // Clear any stale tokens to prevent refresh token errors
+          await supabase.auth.signOut();
         }
       } catch (error) {
         console.error('Error in initializeAuth:', error);
