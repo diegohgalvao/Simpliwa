@@ -7,13 +7,14 @@ import { Sale } from '../../types';
 const Sales = () => {
   const { user } = useAuth();
   const [sales, setSales] = useState<Sale[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const hasInitialized = useRef(false);
+  const isComponentMounted = useRef(true);
 
   const [newSale, setNewSale] = useState({
     amount: '',
@@ -88,22 +89,35 @@ const Sales = () => {
   ];
 
   useEffect(() => {
+    // Marcar componente como montado
+    isComponentMounted.current = true;
+    
     // Só inicializar uma vez
     if (!hasInitialized.current) {
       hasInitialized.current = true;
       fetchSales();
     }
+
+    // Cleanup function
+    return () => {
+      isComponentMounted.current = false;
+    };
   }, []);
 
   const fetchSales = async () => {
+    // Verificar se o componente ainda está montado
+    if (!isComponentMounted.current) return;
+
     try {
       setLoading(true);
       setError(null);
 
       // Se não há empresa selecionada, usar dados mock
       if (!user?.currentCompany?.id) {
-        setSales(mockSales);
-        setLoading(false);
+        if (isComponentMounted.current) {
+          setSales(mockSales);
+          setLoading(false);
+        }
         return;
       }
 
@@ -123,6 +137,8 @@ const Sales = () => {
         timeoutPromise
       ]) as any;
 
+      if (!isComponentMounted.current) return;
+
       if (supabaseError) {
         console.warn('Supabase error, using mock data:', supabaseError);
         setSales(mockSales);
@@ -130,10 +146,13 @@ const Sales = () => {
         setSales(data && data.length > 0 ? data : mockSales);
       }
     } catch (error) {
+      if (!isComponentMounted.current) return;
       console.warn('Error fetching sales, using mock data:', error);
       setSales(mockSales);
     } finally {
-      setLoading(false);
+      if (isComponentMounted.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -232,7 +251,8 @@ const Sales = () => {
   const completedSales = filteredSales.filter(sale => sale.status === 'completed').length;
   const pendingSales = filteredSales.filter(sale => sale.status === 'pending').length;
 
-  if (loading) {
+  // Só mostrar loading na primeira vez
+  if (loading && !hasInitialized.current) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
