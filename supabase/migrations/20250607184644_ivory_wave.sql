@@ -1,0 +1,278 @@
+/*
+  # Fix User Signup Database Error
+
+  1. Database Functions
+    - Create or replace the handle_new_user function to properly handle user creation
+    - Ensure the function creates profiles and handles company creation when needed
+
+  2. Triggers
+    - Create trigger on auth.users to automatically create profile
+    - Handle company creation for users with company data
+
+  3. Security
+    - Ensure proper permissions for the trigger function
+    - Handle edge cases and errors gracefully
+*/
+
+-- Create or replace the handle_new_user function
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  company_data jsonb;
+  new_company_id uuid;
+BEGIN
+  -- Insert into profiles table
+  INSERT INTO public.profiles (id, name, avatar_url, role)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+    NEW.raw_user_meta_data->>'avatar_url',
+    'user'
+  );
+
+  -- Check if there's company data in user metadata
+  company_data := NEW.raw_user_meta_data->'companyData';
+  
+  IF company_data IS NOT NULL THEN
+    -- Create the company
+    INSERT INTO public.companies (name, segment, plan, monthly_revenue, employees, status)
+    VALUES (
+      company_data->>'name',
+      company_data->>'segment',
+      (company_data->>'plan')::plan_type,
+      0,
+      1,
+      'trial'
+    )
+    RETURNING id INTO new_company_id;
+
+    -- Add user as admin of the company
+    INSERT INTO public.company_members (user_id, company_id, role)
+    VALUES (NEW.id, new_company_id, 'admin');
+
+    -- Update user profile to admin role
+    UPDATE public.profiles 
+    SET role = 'admin'
+    WHERE id = NEW.id;
+  END IF;
+
+  RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- Log the error but don't fail the user creation
+    RAISE LOG 'Error in handle_new_user: %', SQLERRM;
+    RETURN NEW;
+END;
+$$;
+
+-- Drop existing trigger if it exists
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
+-- Create the trigger
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Ensure the function has proper permissions
+GRANT EXECUTE ON FUNCTION public.handle_new_user() TO service_role;
+
+-- Create the handle_new_company_member function if it doesn't exist
+CREATE OR REPLACE FUNCTION public.handle_new_company_member()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Create default permissions for the new company member
+  INSERT INTO public.user_permissions (user_id, company_id, permission_type, can_read, can_write, can_delete)
+  VALUES 
+    (NEW.user_id, NEW.company_id, 'products', true, CASE WHEN NEW.role IN ('admin', 'manager') THEN true ELSE false END, CASE WHEN NEW.role = 'admin' THEN true ELSE false END),
+    (NEW.user_id, NEW.company_id, 'customers', true, CASE WHEN NEW.role IN ('admin', 'manager', 'operator') THEN true ELSE false END, CASE WHEN NEW.role = 'admin' THEN true ELSE false END),
+    (NEW.user_id, NEW.company_id, 'sales', true, CASE WHEN NEW.role IN ('admin', 'manager', 'operator') THEN true ELSE false END, CASE WHEN NEW.role = 'admin' THEN true ELSE false END),
+    (NEW.user_id, NEW.company_id, 'messages', true, CASE WHEN NEW.role IN ('admin', 'manager', 'operator') THEN true ELSE false END, false)
+  ON CONFLICT (user_id, company_id, permission_type) DO NOTHING;
+
+  RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- Log the error but don't fail the member creation
+    RAISE LOG 'Error in handle_new_company_member: %', SQLERRM;
+    RETURN NEW;
+END;
+$$;
+
+-- Create the handle_company_member_role_change function if it doesn't exist
+CREATE OR REPLACE FUNCTION public.handle_company_member_role_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Only proceed if role actually changed
+  IF OLD.role IS DISTINCT FROM NEW.role THEN
+    -- Update permissions based on new role
+    UPDATE public.user_permissions 
+    SET 
+      can_write = CASE WHEN NEW.role IN ('admin', 'manager') THEN true ELSE false END,
+      can_delete = CASE WHEN NEW.role = 'admin' THEN true ELSE false END,
+      updated_at = now()
+    WHERE user_id = NEW.user_id AND company_id = NEW.company_id AND permission_type = 'products';
+
+    UPDATE public.user_permissions 
+    SET 
+      can_write = CASE WHEN NEW.role IN ('admin', 'manager', 'operator') THEN true ELSE false END,
+      can_delete = CASE WHEN NEW.role = 'admin' THEN true ELSE false END,
+      updated_at = now()
+    WHERE user_id = NEW.user_id AND company_id = NEW.company_id AND permission_type IN ('customers', 'sales');
+
+    -- Update profile role if user becomes admin
+    IF NEW.role = 'admin' THEN
+      UPDATE public.profiles 
+      SET role = 'admin', updated_at = now()
+      WHERE id = NEW.user_id;
+    ELSIF OLD.role = 'admin' AND NEW.role != 'admin' THEN
+      -- Check if user is admin of any other company
+      IF NOT EXISTS (
+        SELECT 1 FROM public.company_members 
+        WHERE user_id = NEW.user_id AND role = 'admin' AND id != NEW.id
+      ) THEN
+        UPDATE public.profiles 
+        SET role = 'user', updated_at = now()
+        WHERE id = NEW.user_id;
+      END IF;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- Log the error but don't fail the update
+    RAISE LOG 'Error in handle_company_member_role_change: %', SQLERRM;
+    RETURN NEW;
+END;
+$$;
+
+-- Create the prevent_super_admin_company_membership function if it doesn't exist
+CREATE OR REPLACE FUNCTION public.prevent_super_admin_company_membership()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Check if the user is a super admin
+  IF EXISTS (
+    SELECT 1 FROM public.profiles 
+    WHERE id = NEW.user_id AND role = 'super_admin'
+  ) THEN
+    RAISE EXCEPTION 'Super admins cannot be members of specific companies';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+-- Grant necessary permissions
+GRANT EXECUTE ON FUNCTION public.handle_new_company_member() TO service_role;
+GRANT EXECUTE ON FUNCTION public.handle_company_member_role_change() TO service_role;
+GRANT EXECUTE ON FUNCTION public.prevent_super_admin_company_membership() TO service_role;
+
+-- Create helper functions for RLS policies
+CREATE OR REPLACE FUNCTION public.user_has_company_access(company_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.company_members 
+    WHERE user_id = auth.uid() AND company_members.company_id = user_has_company_access.company_id
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.user_is_company_admin(company_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.company_members 
+    WHERE user_id = auth.uid() 
+    AND company_members.company_id = user_is_company_admin.company_id 
+    AND role = 'admin'
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.user_is_super_admin()
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles 
+    WHERE id = auth.uid() AND role = 'super_admin'
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.user_can_create_company()
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Users can create companies if they don't already have one or are super admin
+  RETURN NOT EXISTS (
+    SELECT 1 FROM public.company_members 
+    WHERE user_id = auth.uid()
+  ) OR user_is_super_admin();
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.user_has_permission(company_id uuid, permission_type text, action text)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Super admins have all permissions
+  IF user_is_super_admin() THEN
+    RETURN true;
+  END IF;
+
+  -- Check specific permission
+  RETURN EXISTS (
+    SELECT 1 FROM public.user_permissions up
+    WHERE up.user_id = auth.uid() 
+    AND up.company_id = user_has_permission.company_id
+    AND up.permission_type = user_has_permission.permission_type
+    AND (
+      (action = 'read' AND up.can_read = true) OR
+      (action = 'write' AND up.can_write = true) OR
+      (action = 'delete' AND up.can_delete = true)
+    )
+  );
+END;
+$$;
+
+-- Grant permissions to helper functions
+GRANT EXECUTE ON FUNCTION public.user_has_company_access(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.user_is_company_admin(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.user_is_super_admin() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.user_can_create_company() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.user_has_permission(uuid, text, text) TO authenticated;
