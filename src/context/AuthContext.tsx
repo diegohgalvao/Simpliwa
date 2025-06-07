@@ -109,6 +109,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (profile.role === 'super_admin') {
           console.log('Super admin detected - no company assignment');
         } else {
+          // For regular users, get their company memberships
           const { data: memberData, error: memberError } = await supabase
             .from('company_members')
             .select(`
@@ -136,6 +137,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           } else if (memberData && memberData.length > 0) {
             companyMembers = memberData;
             currentCompany = memberData[0]?.companies as Company;
+            
+            // Se o usuário é admin de uma empresa, atualizar o role no profile
+            const isAdmin = memberData.some(cm => cm.role === 'admin');
+            if (isAdmin && profile.role === 'user') {
+              console.log('User is admin, updating profile role...');
+              try {
+                const { error: updateError } = await supabase
+                  .from('profiles')
+                  .update({ role: 'admin' })
+                  .eq('id', supabaseUser.id);
+                
+                if (!updateError) {
+                  profile.role = 'admin';
+                }
+              } catch (updateError) {
+                console.warn('Could not update profile role:', updateError);
+              }
+            }
           }
         }
       } catch (error) {
@@ -339,7 +358,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { error: 'Configuração do Supabase não encontrada.' };
       }
 
-      console.log('Attempting to sign up user:', email);
+      console.log('Attempting to sign up user:', email, 'with company data:', companyData);
       
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -359,65 +378,81 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('Sign up error:', error);
         
         if (error.message.includes('User already registered')) {
-          return { error: 'Este email já está cadastrado. Tente fazer login.' };
+          return { error: 'Este email já está cadastrado. Tente fazer login ou use outro email.' };
         }
         if (error.message.includes('Password should be at least')) {
           return { error: 'A senha deve ter pelo menos 6 caracteres.' };
         }
         if (error.message.includes('Invalid email')) {
-          return { error: 'Email inválido.' };
+          return { error: 'Email inválido. Verifique o formato do email.' };
         }
         
         return { error: error.message };
       }
 
-      // Se há companyData, criar a empresa após o usuário ser criado
-      if (data.user && companyData) {
+      // Se há companyData e o usuário foi criado, aguardar um pouco e tentar criar a empresa manualmente
+      if (data.user && companyData && !data.user.email_confirmed_at) {
+        console.log('User created, will create company after email confirmation');
+        setLoading(false);
+        return { 
+          error: `Conta criada! Plano ${companyData.plan} selecionado. Verifique seu email para confirmar o cadastro antes de fazer login.` 
+        };
+      }
+
+      // Se o usuário foi criado e confirmado imediatamente, criar empresa
+      if (data.user && companyData && data.user.email_confirmed_at) {
+        console.log('User created and confirmed, creating company...');
         try {
-          // Aguardar um pouco para garantir que o usuário foi criado
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Aguardar um pouco para garantir que o trigger foi executado
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
-          // Criar a empresa
-          const { data: companyResult, error: companyError } = await supabase
-            .from('companies')
-            .insert({
-              name: companyData.name,
-              segment: companyData.segment,
-              plan: companyData.plan,
-              monthly_revenue: 0,
-              employees: 1,
-              status: 'trial'
-            })
-            .select()
-            .single();
+          // Verificar se a empresa já foi criada pelo trigger
+          const { data: existingMembership } = await supabase
+            .from('company_members')
+            .select('id')
+            .eq('user_id', data.user.id)
+            .maybeSingle();
 
-          if (companyError) {
-            console.error('Error creating company:', companyError);
-          } else if (companyResult) {
-            // Adicionar o usuário como admin da empresa
-            const { error: memberError } = await supabase
-              .from('company_members')
+          if (!existingMembership) {
+            // Criar empresa manualmente se o trigger não funcionou
+            console.log('Creating company manually...');
+            const { data: companyResult, error: companyError } = await supabase
+              .from('companies')
               .insert({
-                user_id: data.user.id,
-                company_id: companyResult.id,
-                role: 'admin'
-              });
+                name: companyData.name,
+                segment: companyData.segment,
+                plan: companyData.plan,
+                monthly_revenue: 0,
+                employees: 1,
+                status: 'trial'
+              })
+              .select()
+              .single();
 
-            if (memberError) {
-              console.error('Error adding user as company admin:', memberError);
+            if (companyError) {
+              console.error('Error creating company:', companyError);
+            } else if (companyResult) {
+              // Adicionar o usuário como admin da empresa
+              const { error: memberError } = await supabase
+                .from('company_members')
+                .insert({
+                  user_id: data.user.id,
+                  company_id: companyResult.id,
+                  role: 'admin'
+                });
+
+              if (memberError) {
+                console.error('Error adding user as company admin:', memberError);
+              } else {
+                console.log('Company and membership created successfully');
+              }
             }
+          } else {
+            console.log('Company membership already exists (created by trigger)');
           }
         } catch (companyCreationError) {
           console.error('Error in company creation process:', companyCreationError);
-          // Não retornar erro aqui, pois o usuário foi criado com sucesso
         }
-      }
-
-      if (data.user && !data.user.email_confirmed_at) {
-        setLoading(false);
-        return { 
-          error: 'Conta criada! Verifique seu email para confirmar o cadastro antes de fazer login.' 
-        };
       }
 
       setLoading(false);

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { MessageCircle, Eye, EyeOff, ArrowRight, UserPlus, AlertCircle, CheckCircle, Mail, X, RefreshCw, Crown, Shield, Building2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -13,7 +13,12 @@ interface PlanOption {
 }
 
 const Login = () => {
-  const [currentStep, setCurrentStep] = useState<'plan' | 'signup' | 'login'>('login');
+  const [searchParams] = useSearchParams();
+  const planFromUrl = searchParams.get('plan') as 'starter' | 'professional' | 'enterprise' | null;
+  
+  const [currentStep, setCurrentStep] = useState<'plan' | 'signup' | 'login'>(
+    planFromUrl ? 'signup' : 'login'
+  );
   const [selectedPlan, setSelectedPlan] = useState<PlanOption | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
   const [formData, setFormData] = useState({
@@ -84,6 +89,18 @@ const Login = () => {
     }
   ];
 
+  // Set selected plan from URL parameter
+  useEffect(() => {
+    if (planFromUrl) {
+      const plan = plans.find(p => p.id === planFromUrl);
+      if (plan) {
+        setSelectedPlan(plan);
+        setCurrentStep('signup');
+        setIsSignUp(true);
+      }
+    }
+  }, [planFromUrl]);
+
   const validateForm = () => {
     if (!formData.email.trim()) {
       setError('Email é obrigatório');
@@ -125,6 +142,11 @@ const Login = () => {
         setError('As senhas não coincidem');
         return false;
       }
+
+      if (!selectedPlan) {
+        setError('Selecione um plano');
+        return false;
+      }
     }
 
     return true;
@@ -156,14 +178,25 @@ const Login = () => {
       if (isSignUp || currentStep === 'signup') {
         console.log('Attempting sign up with company creation...');
         
-        // Primeiro, criar o usuário
-        const { error: signUpError } = await signUp(formData.email, formData.password, formData.name);
+        const companyData = {
+          name: formData.companyName,
+          segment: formData.companySegment,
+          plan: selectedPlan!.id
+        };
+        
+        const { error: signUpError } = await signUp(
+          formData.email, 
+          formData.password, 
+          formData.name,
+          companyData
+        );
         
         if (signUpError) {
           if (signUpError.includes('User already registered')) {
             setError('Este email já está cadastrado. Tente fazer login ou use outro email.');
-          } else if (signUpError.includes('Verifique seu email')) {
+          } else if (signUpError.includes('Verifique seu email') || signUpError.includes('Plano')) {
             setShowEmailConfirmation(true);
+            setSuccess(signUpError);
             setFormData({ ...formData, password: '', confirmPassword: '' });
             setCurrentStep('login');
             setIsSignUp(false);
@@ -175,8 +208,7 @@ const Login = () => {
             setError(signUpError);
           }
         } else {
-          // Usuário criado com sucesso, agora criar a empresa
-          setSuccess(`Conta criada com sucesso! Plano ${selectedPlan?.name} selecionado. Verifique seu email para confirmar o cadastro.`);
+          setSuccess(`Conta e empresa criadas com sucesso! Plano ${selectedPlan?.name} ativado. Você é o administrador da empresa.`);
           
           // Resetar formulário
           setFormData({ 
@@ -307,6 +339,8 @@ const Login = () => {
             
             <p className="text-xl text-white/90 max-w-3xl mx-auto">
               Todos os planos incluem teste gratuito completo. Sem cartão de crédito, sem compromisso.
+              <br />
+              <strong>Você será o administrador da sua empresa!</strong>
             </p>
           </div>
 
@@ -546,7 +580,7 @@ const Login = () => {
             {currentStep === 'signup' && (
               <>
                 <div>
-                  <label htmlFor="name\" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                     Seu nome completo *
                   </label>
                   <input
