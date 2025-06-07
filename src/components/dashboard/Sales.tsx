@@ -1,23 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Filter, Plus, Edit, Trash2, DollarSign, Calendar, User, Package, TrendingUp, Download } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useRealData } from '../../hooks/useRealData';
 import { supabase } from '../../lib/supabase';
-import { Sale } from '../../types';
 
 const Sales = () => {
   const { user } = useAuth();
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error, refreshData } = useRealData();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const [editingSale, setEditingSale] = useState<any>(null);
   
-  // Controle de inicialização para evitar múltiplas chamadas
-  const isInitialized = useRef(false);
-  const isMounted = useRef(true);
-
   const [newSale, setNewSale] = useState({
     amount: '',
     product: '',
@@ -26,147 +20,34 @@ const Sales = () => {
     status: 'pending' as const
   });
 
-  // Mock data para demonstração
-  const mockSales: Sale[] = [
-    {
-      id: '1',
-      company_id: user?.currentCompany?.id || '1',
-      amount: 1250,
-      product: 'Vestido Festa Premium',
-      customer_name: 'Maria Silva',
-      payment_method: 'Cartão de Crédito',
-      status: 'completed',
-      sale_date: '2024-01-15',
-      created_at: '2024-01-15T14:30:00Z',
-      updated_at: '2024-01-15T14:30:00Z'
-    },
-    {
-      id: '2',
-      company_id: user?.currentCompany?.id || '1',
-      amount: 890,
-      product: 'Conjunto Casual',
-      customer_name: 'Ana Costa',
-      payment_method: 'PIX',
-      status: 'completed',
-      sale_date: '2024-01-15',
-      created_at: '2024-01-15T13:45:00Z',
-      updated_at: '2024-01-15T13:45:00Z'
-    },
-    {
-      id: '3',
-      company_id: user?.currentCompany?.id || '1',
-      amount: 2100,
-      product: 'Vestido de Noiva',
-      customer_name: 'Carla Santos',
-      payment_method: 'Transferência',
-      status: 'pending',
-      sale_date: '2024-01-15',
-      created_at: '2024-01-15T12:20:00Z',
-      updated_at: '2024-01-15T12:20:00Z'
-    },
-    {
-      id: '4',
-      company_id: user?.currentCompany?.id || '1',
-      amount: 450,
-      product: 'Blusa Social',
-      customer_name: 'Lucia Ferreira',
-      payment_method: 'Dinheiro',
-      status: 'completed',
-      sale_date: '2024-01-14',
-      created_at: '2024-01-14T16:15:00Z',
-      updated_at: '2024-01-14T16:15:00Z'
-    },
-    {
-      id: '5',
-      company_id: user?.currentCompany?.id || '1',
-      amount: 320,
-      product: 'Saia Midi',
-      customer_name: 'Fernanda Lima',
-      payment_method: 'PIX',
-      status: 'cancelled',
-      sale_date: '2024-01-14',
-      created_at: '2024-01-14T10:30:00Z',
-      updated_at: '2024-01-14T10:30:00Z'
-    }
-  ];
-
-  useEffect(() => {
-    // Marcar como montado
-    isMounted.current = true;
-    
-    // Inicializar apenas uma vez
-    if (!isInitialized.current) {
-      isInitialized.current = true;
-      initializeSales();
-    }
-
-    // Cleanup
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  const initializeSales = async () => {
-    if (!isMounted.current) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Sempre usar dados mock para demonstração
-      // Em produção, você tentaria buscar do Supabase primeiro
-      if (isMounted.current) {
-        setSales(mockSales);
-      }
-    } catch (error) {
-      if (isMounted.current) {
-        console.warn('Error initializing sales:', error);
-        setSales(mockSales);
-      }
-    } finally {
-      if (isMounted.current) {
-        setLoading(false);
-      }
-    }
-  };
-
   const handleAddSale = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const newSaleData: Sale = {
-      id: Date.now().toString(),
-      company_id: user?.currentCompany?.id || '1',
-      amount: parseFloat(newSale.amount),
-      product: newSale.product,
-      customer_name: newSale.customer_name,
-      payment_method: newSale.payment_method,
-      status: newSale.status,
-      sale_date: new Date().toISOString().split('T')[0],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
+    if (!user?.currentCompany?.id) {
+      alert('Erro: Empresa não selecionada');
+      return;
+    }
 
     try {
-      // Tentar inserir no Supabase se disponível
-      if (user?.currentCompany?.id) {
-        const { error } = await supabase
-          .from('sales')
-          .insert({
-            company_id: user.currentCompany.id,
-            amount: parseFloat(newSale.amount),
-            product: newSale.product,
-            customer_name: newSale.customer_name,
-            payment_method: newSale.payment_method,
-            status: newSale.status
-          });
+      const { error } = await supabase
+        .from('sales')
+        .insert({
+          company_id: user.currentCompany.id,
+          amount: parseFloat(newSale.amount),
+          product: newSale.product,
+          customer_name: newSale.customer_name,
+          payment_method: newSale.payment_method,
+          status: newSale.status
+        });
 
-        if (error) {
-          console.warn('Supabase insert error:', error);
-        }
+      if (error) {
+        console.error('Erro ao adicionar venda:', error);
+        alert('Erro ao adicionar venda');
+        return;
       }
 
-      // Sempre atualizar estado local
-      setSales([newSaleData, ...sales]);
+      // Refresh data
+      refreshData();
       
       setNewSale({
         amount: '',
@@ -176,11 +57,11 @@ const Sales = () => {
         status: 'pending'
       });
       setShowAddModal(false);
+      
+      alert('Venda adicionada com sucesso!');
     } catch (error) {
-      console.error('Error adding sale:', error);
-      // Ainda adicionar ao estado local
-      setSales([newSaleData, ...sales]);
-      setShowAddModal(false);
+      console.error('Erro ao adicionar venda:', error);
+      alert('Erro ao adicionar venda');
     }
   };
 
@@ -188,25 +69,26 @@ const Sales = () => {
     if (!confirm('Tem certeza que deseja excluir esta venda?')) return;
 
     try {
-      if (user?.currentCompany?.id) {
-        const { error } = await supabase
-          .from('sales')
-          .delete()
-          .eq('id', id);
+      const { error } = await supabase
+        .from('sales')
+        .delete()
+        .eq('id', id);
 
-        if (error) {
-          console.warn('Supabase delete error:', error);
-        }
+      if (error) {
+        console.error('Erro ao excluir venda:', error);
+        alert('Erro ao excluir venda');
+        return;
       }
 
-      setSales(sales.filter(sale => sale.id !== id));
+      refreshData();
+      alert('Venda excluída com sucesso!');
     } catch (error) {
-      console.error('Error deleting sale:', error);
-      setSales(sales.filter(sale => sale.id !== id));
+      console.error('Erro ao excluir venda:', error);
+      alert('Erro ao excluir venda');
     }
   };
 
-  const filteredSales = sales.filter(sale => {
+  const filteredSales = data.sales.filter(sale => {
     const matchesSearch = 
       sale.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
       sale.customer_name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -223,8 +105,7 @@ const Sales = () => {
   const completedSales = filteredSales.filter(sale => sale.status === 'completed').length;
   const pendingSales = filteredSales.filter(sale => sale.status === 'pending').length;
 
-  // Loading apenas na primeira inicialização
-  if (loading && !isInitialized.current) {
+  if (loading) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
@@ -242,7 +123,7 @@ const Sales = () => {
           <p className="font-medium">Erro ao carregar vendas</p>
           <p className="text-sm">{error}</p>
           <button 
-            onClick={initializeSales}
+            onClick={refreshData}
             className="mt-2 text-sm underline hover:no-underline"
           >
             Tentar novamente
@@ -255,7 +136,10 @@ const Sales = () => {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Vendas</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Vendas</h1>
+          <p className="text-gray-600 mt-1">Dados reais do banco de dados</p>
+        </div>
         <div className="flex space-x-3">
           <button className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
             <Download className="h-4 w-4 mr-2" />
