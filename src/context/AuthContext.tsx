@@ -30,85 +30,117 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   const fetchUserData = async (supabaseUser: SupabaseUser): Promise<AuthUser | null> => {
     try {
       console.log('Fetching user data for:', supabaseUser.id);
       
-      // Buscar perfil do usuário
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', supabaseUser.id)
-        .single();
+      // First, try to get the profile
+      let profile: User | null = null;
+      
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', supabaseUser.id)
+          .single();
 
-      if (profileError) {
-        if (profileError.code === 'PGRST116') {
-          // Profile doesn't exist, create it
-          console.log('Profile not found, creating...');
-          const { data: newProfile, error: createError } = await supabase
-            .from('profiles')
-            .insert({
+        if (profileError) {
+          if (profileError.code === 'PGRST116') {
+            // Profile doesn't exist, create it
+            console.log('Profile not found, creating...');
+            const { data: newProfile, error: createError } = await supabase
+              .from('profiles')
+              .insert({
+                id: supabaseUser.id,
+                name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
+                avatar_url: supabaseUser.user_metadata?.avatar_url || null,
+                role: 'user'
+              })
+              .select()
+              .single();
+
+            if (createError) {
+              console.error('Error creating profile:', createError);
+              // If we can't create profile, return a basic user object
+              profile = {
+                id: supabaseUser.id,
+                name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
+                email: supabaseUser.email!,
+                role: 'user',
+                avatar_url: null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              };
+            } else {
+              profile = newProfile;
+            }
+          } else {
+            console.error('Error fetching profile:', profileError);
+            // Create a fallback profile object
+            profile = {
               id: supabaseUser.id,
               name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
-              avatar_url: supabaseUser.user_metadata?.avatar_url || null,
-              role: 'user'
-            })
-            .select()
-            .single();
-
-          if (createError) {
-            console.error('Error creating profile:', createError);
-            return null;
+              email: supabaseUser.email!,
+              role: 'user',
+              avatar_url: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
           }
-          
-          // Use the newly created profile
-          const authUser: AuthUser = {
-            id: supabaseUser.id,
-            email: supabaseUser.email!,
-            profile: newProfile,
-            companies: [],
-            currentCompany: undefined
-          };
-
-          return authUser;
         } else {
-          console.error('Error fetching profile:', profileError);
-          return null;
+          profile = profileData;
         }
+      } catch (error) {
+        console.error('Unexpected error fetching profile:', error);
+        // Create a fallback profile object
+        profile = {
+          id: supabaseUser.id,
+          name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
+          email: supabaseUser.email!,
+          role: 'user',
+          avatar_url: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
       }
 
       console.log('Profile loaded:', profile);
 
-      // Buscar empresas do usuário apenas se não for super_admin
+      // Now fetch companies based on role
       let companyMembers: CompanyMember[] = [];
       let currentCompany: Company | undefined;
 
-      if (profile.role !== 'super_admin') {
-        const { data: memberData, error: companiesError } = await supabase
-          .from('company_members')
-          .select(`
-            *,
-            companies (*)
-          `)
-          .eq('user_id', supabaseUser.id);
-
-        if (companiesError) {
-          console.error('Error fetching companies:', companiesError);
+      try {
+        if (profile.role === 'super_admin') {
+          // For super admin, get the first company as context
+          const { data: companies } = await supabase
+            .from('companies')
+            .select('*')
+            .limit(1);
+          
+          if (companies && companies.length > 0) {
+            currentCompany = companies[0];
+          }
         } else {
-          companyMembers = memberData || [];
-          currentCompany = companyMembers[0]?.companies;
+          // For regular users, get their company memberships
+          const { data: memberData } = await supabase
+            .from('company_members')
+            .select(`
+              *,
+              companies (*)
+            `)
+            .eq('user_id', supabaseUser.id);
+
+          if (memberData) {
+            companyMembers = memberData;
+            currentCompany = companyMembers[0]?.companies;
+          }
         }
-      } else {
-        // Para super admin, buscar a primeira empresa disponível como contexto
-        const { data: companies, error: allCompaniesError } = await supabase
-          .from('companies')
-          .select('*')
-          .limit(1);
-        
-        if (!allCompaniesError && companies && companies.length > 0) {
-          currentCompany = companies[0];
-        }
+      } catch (error) {
+        console.error('Error fetching companies:', error);
+        // Continue without companies - the app should still work
       }
 
       const authUser: AuthUser = {
@@ -122,7 +154,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('Auth user created:', authUser);
       return authUser;
     } catch (error) {
-      console.error('Error fetching user data:', error);
+      console.error('Error in fetchUserData:', error);
       return null;
     }
   };
@@ -142,38 +174,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     let mounted = true;
 
-    // Verificar usuário atual
-    const getInitialUser = async () => {
+    const initializeAuth = async () => {
       try {
-        console.log('Getting initial user...');
-        const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+        console.log('Initializing auth...');
         
-        if (supabaseUser && mounted) {
-          console.log('Initial user found:', supabaseUser.id);
-          const userData = await fetchUserData(supabaseUser);
+        // Get initial session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user && mounted) {
+          console.log('Initial session found:', session.user.id);
+          const userData = await fetchUserData(session.user);
           if (mounted) {
             setUser(userData);
           }
         } else {
-          console.log('No initial user found');
+          console.log('No initial session found');
         }
       } catch (error) {
-        console.error('Error in getInitialUser:', error);
+        console.error('Error in initializeAuth:', error);
       } finally {
         if (mounted) {
           setLoading(false);
+          setInitialized(true);
         }
       }
     };
 
-    getInitialUser();
+    initializeAuth();
 
-    // Escutar mudanças de autenticação
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id);
         
-        if (!mounted) return;
+        if (!mounted || !initialized) return;
 
         if (event === 'SIGNED_IN' && session?.user) {
           setLoading(true);
@@ -188,7 +222,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setLoading(false);
           }
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          // Don't set loading for token refresh
+          // Don't show loading for token refresh
           const userData = await fetchUserData(session.user);
           if (mounted) {
             setUser(userData);
@@ -201,7 +235,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [initialized]);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -229,12 +263,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
 
-      // Don't set loading to false here, let the auth state change handle it
+      // Success - auth state change will handle the rest
       return {};
     } catch (error: any) {
       setLoading(false);
       
-      // Verificar se o erro contém email_not_confirmed na resposta
+      // Check for email confirmation errors in catch block too
       const errorStr = String(error);
       if (errorStr.includes('email_not_confirmed') || 
           errorStr.includes('Email not confirmed') ||
@@ -250,10 +284,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       
-      // Verificar se o Supabase está configurado
       if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
         setLoading(false);
-        return { error: 'Configuração do Supabase não encontrada. Verifique as variáveis de ambiente.' };
+        return { error: 'Configuração do Supabase não encontrada.' };
       }
 
       console.log('Attempting to sign up user:', email);
@@ -274,7 +307,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setLoading(false);
         console.error('Sign up error:', error);
         
-        // Traduzir erros comuns
         if (error.message.includes('User already registered')) {
           return { error: 'Este email já está cadastrado. Tente fazer login.' };
         }
