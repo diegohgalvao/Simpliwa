@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { MessageCircle, Eye, EyeOff, ArrowRight, UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
+import { MessageCircle, Eye, EyeOff, ArrowRight, UserPlus, AlertCircle, CheckCircle, Mail } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
@@ -16,6 +16,7 @@ const Login = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   
   const { signIn, signUp, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -61,6 +62,7 @@ const Login = () => {
     setIsLoading(true);
     setError('');
     setSuccess('');
+    setShowEmailConfirmation(false);
 
     if (!validateForm()) {
       setIsLoading(false);
@@ -92,8 +94,9 @@ const Login = () => {
         if (error) {
           if (error.includes('Invalid login credentials')) {
             setError('Email ou senha incorretos');
-          } else if (error.includes('Email not confirmed')) {
-            setError('Confirme seu email antes de fazer login');
+          } else if (error.includes('Email not confirmed') || error.includes('email_not_confirmed')) {
+            setShowEmailConfirmation(true);
+            setError('');
           } else {
             setError(error);
           }
@@ -120,6 +123,7 @@ const Login = () => {
     // Clear errors when user starts typing
     if (error) setError('');
     if (success) setSuccess('');
+    if (showEmailConfirmation) setShowEmailConfirmation(false);
   };
 
   const demoAccounts = [
@@ -134,12 +138,14 @@ const Login = () => {
     setIsSignUp(false);
     setError('');
     setSuccess('');
+    setShowEmailConfirmation(false);
   };
 
   const toggleMode = () => {
     setIsSignUp(!isSignUp);
     setError('');
     setSuccess('');
+    setShowEmailConfirmation(false);
     setFormData({ email: '', password: '', name: '', confirmPassword: '' });
   };
 
@@ -220,7 +226,7 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {isSignUp && (
               <div>
-                <label htmlFor="name\" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                   Nome completo *
                 </label>
                 <input
@@ -300,6 +306,25 @@ const Login = () => {
                   >
                     {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* Email Confirmation Message */}
+            {showEmailConfirmation && (
+              <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-4 rounded-lg">
+                <div className="flex items-start">
+                  <Mail className="h-5 w-5 mr-3 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-medium mb-1">Confirme seu email</h4>
+                    <p className="text-sm mb-3">
+                      Enviamos um link de confirmação para <strong>{formData.email}</strong>. 
+                      Verifique sua caixa de entrada (incluindo spam) e clique no link para ativar sua conta.
+                    </p>
+                    <p className="text-sm">
+                      Após confirmar seu email, você poderá fazer login normalmente.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
