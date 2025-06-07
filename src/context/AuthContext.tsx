@@ -124,10 +124,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             currentCompany = companies[0];
           }
         } else {
-          // For regular users, get their company memberships without nested companies to avoid RLS recursion
+          // For regular users, get their company memberships with explicit column selection to avoid RLS recursion
           const { data: memberData } = await supabase
             .from('company_members')
-            .select('*')
+            .select('id, user_id, company_id, role, created_at')
             .eq('user_id', supabaseUser.id);
 
           if (memberData && memberData.length > 0) {
