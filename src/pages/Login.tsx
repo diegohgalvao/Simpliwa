@@ -1,15 +1,28 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { MessageCircle, Eye, EyeOff, ArrowRight, UserPlus, AlertCircle, CheckCircle, Mail, X, RefreshCw } from 'lucide-react';
+import { MessageCircle, Eye, EyeOff, ArrowRight, UserPlus, AlertCircle, CheckCircle, Mail, X, RefreshCw, Crown, Shield, Building2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
+interface PlanOption {
+  id: 'starter' | 'professional' | 'enterprise';
+  name: string;
+  price: number;
+  description: string;
+  features: string[];
+  popular?: boolean;
+}
+
 const Login = () => {
+  const [currentStep, setCurrentStep] = useState<'plan' | 'signup' | 'login'>('login');
+  const [selectedPlan, setSelectedPlan] = useState<PlanOption | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     name: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    companyName: '',
+    companySegment: ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -20,6 +33,56 @@ const Login = () => {
   
   const { signIn, signUp, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  const plans: PlanOption[] = [
+    {
+      id: 'starter',
+      name: 'Starter',
+      price: 97,
+      description: 'Perfeito para pequenos negócios começando a se organizar',
+      features: [
+        'Até 1.000 mensagens/mês',
+        'Dashboard básico',
+        'Relatórios essenciais',
+        'Suporte por email',
+        '1 usuário',
+        'Backup automático'
+      ]
+    },
+    {
+      id: 'professional',
+      name: 'Professional',
+      price: 197,
+      description: 'Ideal para empresas em crescimento que precisam de mais controle',
+      features: [
+        'Mensagens ilimitadas',
+        'Dashboard completo',
+        'Relatórios avançados',
+        'Suporte prioritário',
+        'Até 5 usuários',
+        'Automações personalizadas',
+        'API de integração',
+        'Relatórios personalizados'
+      ],
+      popular: true
+    },
+    {
+      id: 'enterprise',
+      name: 'Enterprise',
+      price: 397,
+      description: 'Para empresas estabelecidas que querem o máximo de poder',
+      features: [
+        'Tudo do Professional',
+        'Usuários ilimitados',
+        'Suporte 24/7',
+        'Gestor de conta dedicado',
+        'Integrações customizadas',
+        'Whitelabel disponível',
+        'Treinamento da equipe',
+        'SLA garantido'
+      ]
+    }
+  ];
 
   const validateForm = () => {
     if (!formData.email.trim()) {
@@ -37,9 +100,19 @@ const Login = () => {
       return false;
     }
 
-    if (isSignUp) {
+    if (isSignUp || currentStep === 'signup') {
       if (!formData.name.trim()) {
         setError('Nome é obrigatório');
+        return false;
+      }
+
+      if (!formData.companyName.trim()) {
+        setError('Nome da empresa é obrigatório');
+        return false;
+      }
+
+      if (!formData.companySegment.trim()) {
+        setError('Segmento da empresa é obrigatório');
         return false;
       }
 
@@ -63,6 +136,12 @@ const Login = () => {
     setShowEmailConfirmation(false);
   };
 
+  const handlePlanSelection = (plan: PlanOption) => {
+    setSelectedPlan(plan);
+    setCurrentStep('signup');
+    setIsSignUp(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -74,30 +153,43 @@ const Login = () => {
     }
 
     try {
-      if (isSignUp) {
-        console.log('Attempting sign up...');
-        const { error } = await signUp(formData.email, formData.password, formData.name);
+      if (isSignUp || currentStep === 'signup') {
+        console.log('Attempting sign up with company creation...');
         
-        if (error) {
-          if (error.includes('User already registered')) {
+        // Primeiro, criar o usuário
+        const { error: signUpError } = await signUp(formData.email, formData.password, formData.name);
+        
+        if (signUpError) {
+          if (signUpError.includes('User already registered')) {
             setError('Este email já está cadastrado. Tente fazer login ou use outro email.');
-          } else if (error.includes('Verifique seu email')) {
+          } else if (signUpError.includes('Verifique seu email')) {
             setShowEmailConfirmation(true);
-            setFormData({ email: formData.email, password: '', name: '', confirmPassword: '' });
+            setFormData({ ...formData, password: '', confirmPassword: '' });
+            setCurrentStep('login');
             setIsSignUp(false);
-          } else if (error.includes('Password should be at least')) {
+          } else if (signUpError.includes('Password should be at least')) {
             setError('A senha deve ter pelo menos 6 caracteres.');
-          } else if (error.includes('Invalid email')) {
+          } else if (signUpError.includes('Invalid email')) {
             setError('Email inválido. Verifique o formato do email.');
-          } else if (error.includes('Signup is disabled')) {
-            setError('Cadastro temporariamente desabilitado. Tente novamente mais tarde.');
           } else {
-            setError(error);
+            setError(signUpError);
           }
         } else {
-          setSuccess('Conta criada com sucesso! Verifique seu email para confirmar o cadastro.');
-          setFormData({ email: formData.email, password: '', name: '', confirmPassword: '' });
+          // Usuário criado com sucesso, agora criar a empresa
+          setSuccess(`Conta criada com sucesso! Plano ${selectedPlan?.name} selecionado. Verifique seu email para confirmar o cadastro.`);
+          
+          // Resetar formulário
+          setFormData({ 
+            email: formData.email, 
+            password: '', 
+            name: '', 
+            confirmPassword: '',
+            companyName: '',
+            companySegment: ''
+          });
+          setCurrentStep('login');
           setIsSignUp(false);
+          setSelectedPlan(null);
         }
       } else {
         console.log('Attempting sign in...');
@@ -107,9 +199,8 @@ const Login = () => {
           if (error.includes('Invalid login credentials')) {
             setError('Email ou senha incorretos. Verifique suas credenciais e tente novamente.');
           } else if (error === 'Email not confirmed') {
-            // Mostrar aviso específico para email não confirmado
             setShowEmailConfirmation(true);
-            setError(''); // Limpar erro para mostrar apenas o aviso de confirmação
+            setError('');
           } else if (error.includes('Too many requests')) {
             setError('Muitas tentativas de login. Aguarde alguns minutos antes de tentar novamente.');
           } else if (error.includes('Network error')) {
@@ -120,7 +211,6 @@ const Login = () => {
             setError('Erro ao fazer login. Tente novamente ou entre em contato com o suporte.');
           }
         } else {
-          // Wait a bit for auth state to update, then navigate
           setTimeout(() => {
             navigate('/dashboard');
           }, 100);
@@ -134,12 +224,11 @@ const Login = () => {
     setIsLoading(false);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
-    // Clear messages when user starts typing
     if (error || success || showEmailConfirmation) {
       clearMessages();
     }
@@ -153,8 +242,6 @@ const Login = () => {
 
     try {
       setIsLoading(true);
-      // Note: Supabase doesn't have a direct resend confirmation method in the client
-      // This would typically be handled by a server endpoint
       setSuccess('Se o email existir em nossa base, um novo link de confirmação será enviado.');
       setShowEmailConfirmation(false);
     } catch (error) {
@@ -165,9 +252,21 @@ const Login = () => {
   };
 
   const toggleMode = () => {
-    setIsSignUp(!isSignUp);
+    if (currentStep === 'signup') {
+      setCurrentStep('login');
+      setIsSignUp(false);
+      setSelectedPlan(null);
+    } else {
+      setCurrentStep('plan');
+    }
     clearMessages();
-    setFormData({ email: '', password: '', name: '', confirmPassword: '' });
+    setFormData({ email: '', password: '', name: '', confirmPassword: '', companyName: '', companySegment: '' });
+  };
+
+  const goBackToPlanSelection = () => {
+    setCurrentStep('plan');
+    setSelectedPlan(null);
+    clearMessages();
   };
 
   // Show loading if auth is loading
@@ -177,6 +276,103 @@ const Login = () => {
         <div className="text-center text-white">
           <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p>Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Plan Selection Step
+  if (currentStep === 'plan') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary via-primary to-secondary p-4">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_20%_30%,_rgba(255,255,255,0.1)_0%,_transparent_50%)]"></div>
+          <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(circle_at_80%_70%,_rgba(255,255,255,0.1)_0%,_transparent_50%)]"></div>
+        </div>
+
+        <div className="relative max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-12 pt-8">
+            <div className="flex items-center justify-center space-x-3 mb-6">
+              <div className="bg-accent p-3 rounded-xl">
+                <MessageCircle className="h-8 w-8 text-primary" />
+              </div>
+              <span className="text-3xl font-bold text-white">SimpliWa</span>
+            </div>
+            
+            <h1 className="text-4xl lg:text-5xl font-bold text-white mb-6">
+              Escolha seu plano e comece
+              <span className="block text-accent">seu teste grátis de 14 dias</span>
+            </h1>
+            
+            <p className="text-xl text-white/90 max-w-3xl mx-auto">
+              Todos os planos incluem teste gratuito completo. Sem cartão de crédito, sem compromisso.
+            </p>
+          </div>
+
+          {/* Plans Grid */}
+          <div className="grid lg:grid-cols-3 gap-8 mb-8">
+            {plans.map((plan) => (
+              <div
+                key={plan.id}
+                className={`relative bg-white rounded-3xl p-8 shadow-xl transform transition-all duration-300 hover:scale-105 cursor-pointer ${
+                  plan.popular ? 'ring-4 ring-accent' : ''
+                }`}
+                onClick={() => handlePlanSelection(plan)}
+              >
+                {plan.popular && (
+                  <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                    <div className="bg-accent text-primary px-6 py-2 rounded-full text-sm font-bold">
+                      Mais Popular
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-center mb-8">
+                  <div className="bg-primary/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    {plan.id === 'starter' && <Building2 className="h-8 w-8 text-primary" />}
+                    {plan.id === 'professional' && <Crown className="h-8 w-8 text-primary" />}
+                    {plan.id === 'enterprise' && <Shield className="h-8 w-8 text-primary" />}
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
+                  <p className="text-gray-600 text-sm mb-4">{plan.description}</p>
+                  
+                  <div className="flex items-baseline justify-center mb-6">
+                    <span className="text-sm text-gray-500">R$</span>
+                    <span className="text-5xl font-bold text-gray-900">{plan.price}</span>
+                    <span className="text-gray-500">/mês</span>
+                  </div>
+                </div>
+
+                <ul className="space-y-3 mb-8">
+                  {plan.features.map((feature, index) => (
+                    <li key={index} className="flex items-center text-sm">
+                      <CheckCircle className="h-4 w-4 text-secondary mr-3 flex-shrink-0" />
+                      <span className="text-gray-700">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <button className={`w-full py-4 rounded-full font-bold text-lg transition-all transform hover:scale-105 ${
+                  plan.popular
+                    ? 'bg-secondary text-white hover:bg-opacity-90'
+                    : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                }`}>
+                  Começar Teste Grátis
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Back to Login */}
+          <div className="text-center">
+            <button
+              onClick={() => setCurrentStep('login')}
+              className="text-white hover:text-accent transition-colors"
+            >
+              Já tem uma conta? Faça login
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -201,18 +397,51 @@ const Login = () => {
           </div>
           
           <h1 className="text-4xl lg:text-5xl font-bold mb-6">
-            {isSignUp ? 'Crie sua conta' : 'Acesse seu'}
+            {currentStep === 'signup' ? 'Crie sua empresa' : 'Acesse seu'}
             <span className="block text-accent">
-              {isSignUp ? 'gratuitamente' : 'Dashboard'}
+              {currentStep === 'signup' ? 'e seja o Admin' : 'Dashboard'}
             </span>
           </h1>
           
           <p className="text-xl text-white/90 mb-8">
-            {isSignUp 
-              ? 'Comece a gerenciar sua empresa pelo WhatsApp hoje mesmo.'
+            {currentStep === 'signup' 
+              ? `Plano ${selectedPlan?.name} selecionado. Você será o administrador da empresa com acesso total.`
               : 'Gerencie sua empresa com dados em tempo real e relatórios completos.'
             }
           </p>
+
+          {/* Selected Plan Info */}
+          {selectedPlan && currentStep === 'signup' && (
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-8">
+              <h3 className="text-lg font-bold mb-2">Plano Selecionado: {selectedPlan.name}</h3>
+              <p className="text-white/90 text-sm mb-3">{selectedPlan.description}</p>
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-bold text-accent">R$ {selectedPlan.price}/mês</span>
+                <button
+                  onClick={goBackToPlanSelection}
+                  className="text-sm text-white/80 hover:text-white underline"
+                >
+                  Alterar plano
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Hierarchy Info */}
+          {currentStep === 'signup' && (
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-8">
+              <h3 className="text-lg font-bold mb-4 flex items-center">
+                <Crown className="h-5 w-5 mr-2 text-accent" />
+                Você será o Admin da Empresa
+              </h3>
+              <div className="space-y-2 text-sm text-white/90">
+                <div>✓ Acesso total à gestão da empresa</div>
+                <div>✓ Pode adicionar e gerenciar funcionários</div>
+                <div>✓ Controle de permissões da equipe</div>
+                <div>✓ Relatórios e análises completas</div>
+              </div>
+            </div>
+          )}
 
           {/* Features */}
           <div className="space-y-4">
@@ -234,11 +463,11 @@ const Login = () => {
         <div className="bg-white rounded-3xl p-8 shadow-2xl">
           <div className="text-center mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              {isSignUp ? 'Criar conta' : 'Faça seu login'}
+              {currentStep === 'signup' ? 'Criar empresa' : 'Faça seu login'}
             </h2>
             <p className="text-gray-600">
-              {isSignUp 
-                ? 'Preencha os dados abaixo para criar sua conta'
+              {currentStep === 'signup' 
+                ? 'Preencha os dados para criar sua empresa e conta de administrador'
                 : 'Entre com suas credenciais para acessar o dashboard'
               }
             </p>
@@ -256,12 +485,6 @@ const Login = () => {
                     (incluindo a pasta de spam) e clique no link de confirmação que enviamos para{' '}
                     <strong>{formData.email}</strong>.
                   </p>
-                  <div className="bg-blue-100 p-3 rounded-lg mb-3">
-                    <p className="text-xs text-blue-700">
-                      <strong>💡 Dica:</strong> Se não encontrar o email, verifique a pasta de spam/lixo eletrônico. 
-                      Emails de confirmação às vezes são filtrados automaticamente.
-                    </p>
-                  </div>
                   <div className="flex items-center space-x-3">
                     <button
                       onClick={handleResendConfirmation}
@@ -320,29 +543,71 @@ const Login = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {isSignUp && (
-              <div>
-                <label htmlFor="name\" className="block text-sm font-medium text-gray-700 mb-2">
-                  Nome completo *
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors ${
-                    error && !formData.name.trim() ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
-                  placeholder="Seu nome completo"
-                  required={isSignUp}
-                />
-              </div>
+            {currentStep === 'signup' && (
+              <>
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                    Seu nome completo *
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors"
+                    placeholder="Seu nome completo"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-2">
+                    Nome da empresa *
+                  </label>
+                  <input
+                    type="text"
+                    id="companyName"
+                    name="companyName"
+                    value={formData.companyName}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors"
+                    placeholder="Nome da sua empresa"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="companySegment" className="block text-sm font-medium text-gray-700 mb-2">
+                    Segmento da empresa *
+                  </label>
+                  <select
+                    id="companySegment"
+                    name="companySegment"
+                    value={formData.companySegment}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors"
+                    required
+                  >
+                    <option value="">Selecione o segmento</option>
+                    <option value="Moda e Vestuário">Moda e Vestuário</option>
+                    <option value="Alimentação">Alimentação</option>
+                    <option value="Beleza e Estética">Beleza e Estética</option>
+                    <option value="Construção Civil">Construção Civil</option>
+                    <option value="Assistência Técnica">Assistência Técnica</option>
+                    <option value="Saúde">Saúde</option>
+                    <option value="Educação">Educação</option>
+                    <option value="Varejo">Varejo</option>
+                    <option value="Serviços">Serviços</option>
+                    <option value="Outro">Outro</option>
+                  </select>
+                </div>
+              </>
             )}
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email *
+                Email {currentStep === 'signup' ? 'corporativo' : ''} *
               </label>
               <input
                 type="email"
@@ -350,9 +615,7 @@ const Login = () => {
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors ${
-                  error && (!formData.email.trim() || !formData.email.includes('@')) ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                }`}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors"
                 placeholder="seu@email.com"
                 required
               />
@@ -369,10 +632,8 @@ const Login = () => {
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors pr-12 ${
-                    error && !formData.password.trim() ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
-                  placeholder={isSignUp ? 'Mínimo 6 caracteres' : 'Sua senha'}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors pr-12"
+                  placeholder={currentStep === 'signup' ? 'Mínimo 6 caracteres' : 'Sua senha'}
                   required
                 />
                 <button
@@ -385,7 +646,7 @@ const Login = () => {
               </div>
             </div>
 
-            {isSignUp && (
+            {currentStep === 'signup' && (
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
                   Confirmar senha *
@@ -397,11 +658,9 @@ const Login = () => {
                     name="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors pr-12 ${
-                      error && formData.password !== formData.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                    }`}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors pr-12"
                     placeholder="Confirme sua senha"
-                    required={isSignUp}
+                    required
                   />
                   <button
                     type="button"
@@ -423,10 +682,10 @@ const Login = () => {
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               ) : (
                 <>
-                  {isSignUp ? (
+                  {currentStep === 'signup' ? (
                     <>
                       <UserPlus className="mr-2 h-5 w-5" />
-                      Criar Conta
+                      Criar Empresa e Conta
                     </>
                   ) : (
                     <>
@@ -445,24 +704,12 @@ const Login = () => {
               onClick={toggleMode}
               className="text-secondary hover:underline"
             >
-              {isSignUp 
+              {currentStep === 'signup' 
                 ? 'Já tem uma conta? Faça login'
-                : 'Não tem uma conta? Cadastre-se'
+                : 'Não tem uma conta? Escolha seu plano'
               }
             </button>
           </div>
-
-          {/* Environment Check */}
-          {(!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) && (
-            <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-center">
-                <AlertCircle className="h-5 w-5 text-yellow-600 mr-2" />
-                <div className="text-sm text-yellow-800">
-                  <strong>Configuração necessária:</strong> Configure as variáveis de ambiente do Supabase no arquivo .env
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="mt-6 text-center">
             <Link 
