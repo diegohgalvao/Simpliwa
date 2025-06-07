@@ -226,7 +226,7 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {isSignUp && (
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="name\" className="block text-sm font-medium text-gray-700 mb-2">
                   Nome completo *
                 </label>
                 <input
