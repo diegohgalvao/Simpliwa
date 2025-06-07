@@ -426,7 +426,7 @@ const BusinessIntelligence = () => {
             </h4>
             <p className="text-sm text-gray-600">
               {companies.filter(c => c.plan === 'starter' && (c.monthly_revenue || 0) > 30000).length} empresas 
-              starter com receita >R$ 30k. Potencial de upgrade para Professional.
+              starter com receita {'>'}R$ 30k. Potencial de upgrade para Professional.
             </p>
           </div>
           <div className="bg-white p-4 rounded-lg">
