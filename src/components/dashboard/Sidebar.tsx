@@ -34,8 +34,7 @@ const Sidebar: React.FC = () => {
     { id: 'notificacoes', label: 'Notificações', icon: Bell, path: '/dashboard/notificacoes' },
     ...(user?.profile?.role === 'super_admin' ? [
       { id: 'empresas', label: 'Empresas', icon: Building2, path: '/dashboard/empresas' },
-      { id: 'usuarios', label: 'Usuários', icon: UserCog, path: '/dashboard/usuarios' },
-      { id: 'super-admins', label: 'Super Admins', icon: Crown, path: '/dashboard/super-admins' }
+      { id: 'usuarios', label: 'Usuários', icon: UserCog, path: '/dashboard/usuarios' }
     ] : []),
     { id: 'configuracoes', label: 'Configurações', icon: Settings, path: '/dashboard/configuracoes' }
   ];
