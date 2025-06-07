@@ -17,9 +17,9 @@ const Dashboard = () => {
   const [activeSection, setActiveSection] = useState('overview');
   const { user } = useAuth();
   
-  // Refs para manter os componentes montados
-  const componentRefs = useRef<{ [key: string]: React.ReactElement }>({});
-  const initializedSections = useRef<Set<string>>(new Set());
+  // Cache para componentes já renderizados
+  const renderedComponents = useRef<{ [key: string]: React.ReactElement }>({});
+  const mountedSections = useRef<Set<string>>(new Set(['overview'])); // Overview sempre montado
 
   if (!user) {
     return (
@@ -29,95 +29,91 @@ const Dashboard = () => {
     );
   }
 
-  // Função para criar e cachear componentes
-  const getComponent = useCallback((section: string) => {
-    // Se o componente já foi criado, retorna ele
-    if (componentRefs.current[section]) {
-      return componentRefs.current[section];
-    }
-
-    // Cria o componente apenas uma vez
-    let component: React.ReactElement;
-    
+  // Função para criar componentes sob demanda
+  const createComponent = useCallback((section: string): React.ReactElement => {
     switch (section) {
       case 'overview':
-        component = <Overview key="overview" />;
-        break;
+        return <Overview key="overview" />;
       case 'sales':
-        component = <Sales key="sales" />;
-        break;
+        return <Sales key="sales" />;
       case 'products':
-        component = <Products key="products" />;
-        break;
+        return <Products key="products" />;
       case 'customers':
-        component = <Customers key="customers" />;
-        break;
+        return <Customers key="customers" />;
       case 'messages':
-        component = <Messages key="messages" />;
-        break;
+        return <Messages key="messages" />;
       case 'team':
-        component = <Team key="team" />;
-        break;
+        return <Team key="team" />;
       case 'analytics':
-        component = <Analytics key="analytics" />;
-        break;
+        return <Analytics key="analytics" />;
       case 'notifications':
-        component = <Notifications key="notifications" />;
-        break;
+        return <Notifications key="notifications" />;
       case 'companies':
-        component = <Companies key="companies" />;
-        break;
+        return <Companies key="companies" />;
       case 'users':
-        component = <Users key="users" />;
-        break;
+        return <Users key="users" />;
       case 'settings':
-        component = <Settings key="settings" />;
-        break;
+        return <Settings key="settings" />;
       default:
-        component = <Overview key="overview" />;
+        return <Overview key="overview" />;
     }
-
-    // Armazena o componente no cache
-    componentRefs.current[section] = component;
-    initializedSections.current.add(section);
-    
-    return component;
   }, []);
 
-  // Lista de todas as seções possíveis
-  const allSections = [
-    'overview', 'sales', 'products', 'customers', 'messages', 
-    'team', 'analytics', 'notifications', 'companies', 'users', 'settings'
-  ];
+  // Função para obter ou criar componente
+  const getComponent = useCallback((section: string): React.ReactElement => {
+    // Se já foi renderizado, retorna do cache
+    if (renderedComponents.current[section]) {
+      return renderedComponents.current[section];
+    }
+
+    // Cria novo componente e adiciona ao cache
+    const component = createComponent(section);
+    renderedComponents.current[section] = component;
+    mountedSections.current.add(section);
+    
+    return component;
+  }, [createComponent]);
+
+  // Handler para mudança de seção
+  const handleSectionChange = useCallback((section: string) => {
+    setActiveSection(section);
+    
+    // Garante que o componente será criado se não existir
+    if (!mountedSections.current.has(section)) {
+      getComponent(section);
+    }
+  }, [getComponent]);
 
   return (
     <div className="flex h-screen bg-gray-100">
-      <Sidebar activeSection={activeSection} onSectionChange={setActiveSection} />
-      <main className="flex-1 overflow-hidden relative">
-        {/* Container para todos os componentes */}
-        <div className="h-full">
-          {allSections.map((section) => {
-            // Só renderiza seções que já foram visitadas ou a seção ativa
-            const shouldRender = initializedSections.current.has(section) || section === activeSection;
-            
-            if (!shouldRender) {
-              return null;
-            }
-
-            return (
-              <div
-                key={section}
-                className={`absolute inset-0 transition-opacity duration-200 ${
-                  activeSection === section 
-                    ? 'opacity-100 z-10 overflow-auto' 
-                    : 'opacity-0 z-0 overflow-hidden pointer-events-none'
-                }`}
-              >
+      <Sidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
+      
+      <main className="flex-1 relative overflow-hidden">
+        {/* Renderizar apenas seções que já foram visitadas */}
+        {Array.from(mountedSections.current).map((section) => {
+          const isActive = activeSection === section;
+          
+          return (
+            <div
+              key={section}
+              className={`absolute inset-0 transition-all duration-300 ease-in-out ${
+                isActive 
+                  ? 'opacity-100 visible z-10' 
+                  : 'opacity-0 invisible z-0'
+              }`}
+              style={{
+                // Garantir que componentes invisíveis não interfiram
+                pointerEvents: isActive ? 'auto' : 'none',
+                // Usar transform para melhor performance
+                transform: isActive ? 'translateX(0)' : 'translateX(-10px)'
+              }}
+            >
+              <div className="h-full overflow-auto">
                 {getComponent(section)}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
       </main>
     </div>
   );

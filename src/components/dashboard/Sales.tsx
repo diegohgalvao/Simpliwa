@@ -13,8 +13,10 @@ const Sales = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
-  const hasInitialized = useRef(false);
-  const isComponentMounted = useRef(true);
+  
+  // Controle de inicialização para evitar múltiplas chamadas
+  const isInitialized = useRef(false);
+  const isMounted = useRef(true);
 
   const [newSale, setNewSale] = useState({
     amount: '',
@@ -24,7 +26,7 @@ const Sales = () => {
     status: 'pending' as const
   });
 
-  // Mock data for demonstration
+  // Mock data para demonstração
   const mockSales: Sale[] = [
     {
       id: '1',
@@ -89,68 +91,40 @@ const Sales = () => {
   ];
 
   useEffect(() => {
-    // Marcar componente como montado
-    isComponentMounted.current = true;
+    // Marcar como montado
+    isMounted.current = true;
     
-    // Só inicializar uma vez
-    if (!hasInitialized.current) {
-      hasInitialized.current = true;
-      fetchSales();
+    // Inicializar apenas uma vez
+    if (!isInitialized.current) {
+      isInitialized.current = true;
+      initializeSales();
     }
 
-    // Cleanup function
+    // Cleanup
     return () => {
-      isComponentMounted.current = false;
+      isMounted.current = false;
     };
   }, []);
 
-  const fetchSales = async () => {
-    // Verificar se o componente ainda está montado
-    if (!isComponentMounted.current) return;
+  const initializeSales = async () => {
+    if (!isMounted.current) return;
 
     try {
       setLoading(true);
       setError(null);
 
-      // Se não há empresa selecionada, usar dados mock
-      if (!user?.currentCompany?.id) {
-        if (isComponentMounted.current) {
-          setSales(mockSales);
-          setLoading(false);
-        }
-        return;
-      }
-
-      // Tentar buscar do Supabase com timeout
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 3000)
-      );
-
-      const fetchPromise = supabase
-        .from('sales')
-        .select('*')
-        .eq('company_id', user.currentCompany.id)
-        .order('created_at', { ascending: false });
-
-      const { data, error: supabaseError } = await Promise.race([
-        fetchPromise,
-        timeoutPromise
-      ]) as any;
-
-      if (!isComponentMounted.current) return;
-
-      if (supabaseError) {
-        console.warn('Supabase error, using mock data:', supabaseError);
+      // Sempre usar dados mock para demonstração
+      // Em produção, você tentaria buscar do Supabase primeiro
+      if (isMounted.current) {
         setSales(mockSales);
-      } else {
-        setSales(data && data.length > 0 ? data : mockSales);
       }
     } catch (error) {
-      if (!isComponentMounted.current) return;
-      console.warn('Error fetching sales, using mock data:', error);
-      setSales(mockSales);
+      if (isMounted.current) {
+        console.warn('Error initializing sales:', error);
+        setSales(mockSales);
+      }
     } finally {
-      if (isComponentMounted.current) {
+      if (isMounted.current) {
         setLoading(false);
       }
     }
@@ -173,8 +147,8 @@ const Sales = () => {
     };
 
     try {
+      // Tentar inserir no Supabase se disponível
       if (user?.currentCompany?.id) {
-        // Tentar inserir no Supabase
         const { error } = await supabase
           .from('sales')
           .insert({
@@ -187,7 +161,7 @@ const Sales = () => {
           });
 
         if (error) {
-          console.warn('Supabase insert error, adding to local state:', error);
+          console.warn('Supabase insert error:', error);
         }
       }
 
@@ -204,7 +178,7 @@ const Sales = () => {
       setShowAddModal(false);
     } catch (error) {
       console.error('Error adding sale:', error);
-      // Ainda adicionar ao estado local mesmo se Supabase falhar
+      // Ainda adicionar ao estado local
       setSales([newSaleData, ...sales]);
       setShowAddModal(false);
     }
@@ -225,11 +199,9 @@ const Sales = () => {
         }
       }
 
-      // Sempre atualizar estado local
       setSales(sales.filter(sale => sale.id !== id));
     } catch (error) {
       console.error('Error deleting sale:', error);
-      // Ainda remover do estado local
       setSales(sales.filter(sale => sale.id !== id));
     }
   };
@@ -251,8 +223,8 @@ const Sales = () => {
   const completedSales = filteredSales.filter(sale => sale.status === 'completed').length;
   const pendingSales = filteredSales.filter(sale => sale.status === 'pending').length;
 
-  // Só mostrar loading na primeira vez
-  if (loading && !hasInitialized.current) {
+  // Loading apenas na primeira inicialização
+  if (loading && !isInitialized.current) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
@@ -270,7 +242,7 @@ const Sales = () => {
           <p className="font-medium">Erro ao carregar vendas</p>
           <p className="text-sm">{error}</p>
           <button 
-            onClick={fetchSales}
+            onClick={initializeSales}
             className="mt-2 text-sm underline hover:no-underline"
           >
             Tentar novamente
