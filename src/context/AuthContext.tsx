@@ -180,21 +180,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('Initializing auth...');
         
         // Get initial session
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          // Clear any invalid session data
+          await supabase.auth.signOut();
+          if (mounted) {
+            setUser(null);
+            setLoading(false);
+            setInitialized(true);
+          }
+          return;
+        }
         
         if (session?.user && mounted) {
           console.log('Initial session found:', session.user.id);
-          const userData = await fetchUserData(session.user);
-          if (mounted) {
-            setUser(userData);
+          
+          // Verify the session is still valid
+          const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+          
+          if (userError || !currentUser) {
+            console.log('Session invalid, clearing...');
+            await supabase.auth.signOut();
+            if (mounted) {
+              setUser(null);
+            }
+          } else {
+            const userData = await fetchUserData(currentUser);
+            if (mounted) {
+              setUser(userData);
+            }
           }
         } else {
           console.log('No initial session found');
-          // Clear any stale tokens to prevent refresh token errors
-          await supabase.auth.signOut();
         }
       } catch (error) {
         console.error('Error in initializeAuth:', error);
+        // Clear any problematic session data
+        try {
+          await supabase.auth.signOut();
+        } catch (signOutError) {
+          console.error('Error signing out:', signOutError);
+        }
+        if (mounted) {
+          setUser(null);
+        }
       } finally {
         if (mounted) {
           setLoading(false);
@@ -214,10 +245,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (event === 'SIGNED_IN' && session?.user) {
           setLoading(true);
-          const userData = await fetchUserData(session.user);
-          if (mounted) {
-            setUser(userData);
-            setLoading(false);
+          try {
+            const userData = await fetchUserData(session.user);
+            if (mounted) {
+              setUser(userData);
+            }
+          } catch (error) {
+            console.error('Error handling sign in:', error);
+            if (mounted) {
+              setUser(null);
+            }
+          } finally {
+            if (mounted) {
+              setLoading(false);
+            }
           }
         } else if (event === 'SIGNED_OUT') {
           if (mounted) {
@@ -225,10 +266,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setLoading(false);
           }
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          // Don't show loading for token refresh
-          const userData = await fetchUserData(session.user);
-          if (mounted) {
-            setUser(userData);
+          // Don't show loading for token refresh, but update user data
+          try {
+            const userData = await fetchUserData(session.user);
+            if (mounted) {
+              setUser(userData);
+            }
+          } catch (error) {
+            console.error('Error handling token refresh:', error);
+            // If token refresh fails, sign out
+            await supabase.auth.signOut();
+            if (mounted) {
+              setUser(null);
+            }
           }
         }
       }
@@ -341,9 +391,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signOut = async () => {
     setLoading(true);
-    await supabase.auth.signOut();
-    setUser(null);
-    setLoading(false);
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const switchCompany = (companyId: string) => {
