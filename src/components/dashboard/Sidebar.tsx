@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   BarChart3, 
@@ -16,32 +17,37 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-interface SidebarProps {
-  activeSection: string;
-  onSectionChange: (section: string) => void;
-}
-
-const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => {
+const Sidebar: React.FC = () => {
   const { user, signOut, switchCompany } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const menuItems = [
-    { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
-    { id: 'sales', label: 'Vendas', icon: ShoppingCart },
-    { id: 'products', label: 'Produtos', icon: Package },
-    { id: 'customers', label: 'Clientes', icon: Users },
-    { id: 'messages', label: 'Mensagens', icon: MessageSquare },
-    { id: 'team', label: 'Equipe', icon: UserCheck },
-    { id: 'analytics', label: 'Relatórios', icon: BarChart3 },
-    { id: 'notifications', label: 'Notificações', icon: Bell },
+    { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard, path: '/dashboard/overview' },
+    { id: 'vendas', label: 'Vendas', icon: ShoppingCart, path: '/dashboard/vendas' },
+    { id: 'produtos', label: 'Produtos', icon: Package, path: '/dashboard/produtos' },
+    { id: 'clientes', label: 'Clientes', icon: Users, path: '/dashboard/clientes' },
+    { id: 'mensagens', label: 'Mensagens', icon: MessageSquare, path: '/dashboard/mensagens' },
+    { id: 'equipe', label: 'Equipe', icon: UserCheck, path: '/dashboard/equipe' },
+    { id: 'relatorios', label: 'Relatórios', icon: BarChart3, path: '/dashboard/relatorios' },
+    { id: 'notificacoes', label: 'Notificações', icon: Bell, path: '/dashboard/notificacoes' },
     ...(user?.profile?.role === 'super_admin' ? [
-      { id: 'companies', label: 'Empresas', icon: Building2 },
-      { id: 'users', label: 'Usuários', icon: UserCog }
+      { id: 'empresas', label: 'Empresas', icon: Building2, path: '/dashboard/empresas' },
+      { id: 'usuarios', label: 'Usuários', icon: UserCog, path: '/dashboard/usuarios' }
     ] : []),
-    { id: 'settings', label: 'Configurações', icon: Settings }
+    { id: 'configuracoes', label: 'Configurações', icon: Settings, path: '/dashboard/configuracoes' }
   ];
 
   const handleCompanySwitch = (companyId: string) => {
     switchCompany(companyId);
+  };
+
+  const handleNavigation = (path: string) => {
+    navigate(path);
+  };
+
+  const isActive = (path: string) => {
+    return location.pathname === path;
   };
 
   return (
@@ -106,9 +112,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => 
           {menuItems.map((item) => (
             <li key={item.id}>
               <button
-                onClick={() => onSectionChange(item.id)}
+                onClick={() => handleNavigation(item.path)}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  activeSection === item.id
+                  isActive(item.path)
                     ? 'bg-primary text-white'
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
