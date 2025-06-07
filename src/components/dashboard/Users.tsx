@@ -60,7 +60,7 @@ const Users = () => {
       setLoading(true);
       setError(null);
 
-      // Buscar todos os perfis com informações dos usuários
+      // Buscar apenas os perfis - removemos a chamada para auth.admin.listUsers()
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select(`
@@ -77,26 +77,17 @@ const Users = () => {
         throw profilesError;
       }
 
-      // Buscar informações de email dos usuários
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-      
-      if (authError) {
-        console.warn('Não foi possível buscar dados de autenticação:', authError);
-      }
-
-      // Combinar dados
+      // Criar dados dos usuários apenas com informações do perfil
       const combinedUsers: SystemUser[] = (profilesData || []).map(profile => {
-        const authUser = authUsers?.users?.find(u => u.id === profile.id);
-        
         return {
           id: profile.id,
           name: profile.name,
-          email: authUser?.email || 'Email não disponível',
+          email: 'Email protegido', // Não podemos acessar emails via admin API no frontend
           role: profile.role,
           avatar_url: profile.avatar_url,
           created_at: profile.created_at,
           updated_at: profile.updated_at,
-          last_login: authUser?.last_sign_in_at || undefined,
+          last_login: undefined, // Não disponível sem admin API
           status: 'active' // Por enquanto, todos ativos
         };
       });
@@ -222,8 +213,11 @@ const Users = () => {
           <div>
             <h3 className="text-sm font-medium text-amber-800">Área de Alta Segurança</h3>
             <p className="text-sm text-amber-700 mt-1">
-              Você está visualizando dados sensíveis de todos os usuários do sistema. 
+              Você está visualizando dados dos usuários do sistema. 
               Apenas super administradores têm este acesso.
+            </p>
+            <p className="text-xs text-amber-600 mt-2">
+              Nota: Emails e dados de login são protegidos e não são exibidos por segurança.
             </p>
           </div>
         </div>
@@ -280,10 +274,8 @@ const Users = () => {
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Usuário</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Email</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Função</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Cadastro</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-700">Último Login</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Status</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Ações</th>
               </tr>
@@ -291,7 +283,7 @@ const Users = () => {
             <tbody>
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-gray-500">
+                  <td colSpan={5} className="py-8 text-center text-gray-500">
                     Nenhum usuário encontrado
                   </td>
                 </tr>
@@ -317,9 +309,6 @@ const Users = () => {
                       </div>
                     </td>
                     <td className="py-4 px-4">
-                      <span className="text-sm text-gray-900">{systemUser.email}</span>
-                    </td>
-                    <td className="py-4 px-4">
                       <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full border ${getRoleBadgeColor(systemUser.role)}`}>
                         {getRoleIcon(systemUser.role)}
                         <span className="ml-1">{getRoleLabel(systemUser.role)}</span>
@@ -330,11 +319,6 @@ const Users = () => {
                         <Calendar className="h-4 w-4 text-gray-400 mr-2" />
                         {formatDate(systemUser.created_at)}
                       </div>
-                    </td>
-                    <td className="py-4 px-4">
-                      <span className="text-sm text-gray-900">
-                        {systemUser.last_login ? formatDate(systemUser.last_login) : 'Nunca'}
-                      </span>
                     </td>
                     <td className="py-4 px-4">
                       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
@@ -371,6 +355,7 @@ const Users = () => {
               <li>• <strong>Administradores:</strong> Gerenciam suas próprias empresas</li>
               <li>• <strong>Usuários:</strong> Acesso limitado dentro de suas empresas</li>
               <li>• <strong>Dados sensíveis:</strong> Protegidos por RLS (Row Level Security)</li>
+              <li>• <strong>Emails:</strong> Protegidos e não exibidos por segurança</li>
             </ul>
           </div>
         </div>

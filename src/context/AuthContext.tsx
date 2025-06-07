@@ -44,40 +44,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           .from('profiles')
           .select('*')
           .eq('id', supabaseUser.id)
-          .single();
+          .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no rows
 
         if (profileError) {
-          if (profileError.code === 'PGRST116') {
-            // Profile doesn't exist, create it
-            console.log('Profile not found, creating...');
-            const { data: newProfile, error: createError } = await supabase
-              .from('profiles')
-              .insert({
-                id: supabaseUser.id,
-                name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
-                avatar_url: supabaseUser.user_metadata?.avatar_url || null,
-                role: 'user'
-              })
-              .select()
-              .single();
+          console.error('Error fetching profile:', profileError);
+          throw profileError;
+        }
 
-            if (createError) {
-              console.error('Error creating profile:', createError);
-              // If we can't create profile, return a basic user object
-              profile = {
-                id: supabaseUser.id,
-                name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
-                email: supabaseUser.email!,
-                role: 'user',
-                avatar_url: null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              };
-            } else {
-              profile = newProfile;
-            }
-          } else {
-            console.error('Error fetching profile:', profileError);
+        if (!profileData) {
+          // Profile doesn't exist, create it
+          console.log('Profile not found, creating...');
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              id: supabaseUser.id,
+              name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
+              avatar_url: supabaseUser.user_metadata?.avatar_url || null,
+              role: 'user'
+            })
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('Error creating profile:', createError);
             // Create a fallback profile object
             profile = {
               id: supabaseUser.id,
@@ -88,6 +77,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             };
+          } else {
+            profile = newProfile;
           }
         } else {
           profile = profileData;
@@ -115,36 +106,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         if (profile.role === 'super_admin') {
           // For super admin, get the first company as context
-          const { data: companies } = await supabase
+          const { data: companies, error: companiesError } = await supabase
             .from('companies')
             .select('*')
             .limit(1);
           
-          if (companies && companies.length > 0) {
+          if (companiesError) {
+            console.warn('Error fetching companies for super admin:', companiesError);
+          } else if (companies && companies.length > 0) {
             currentCompany = companies[0];
           }
         } else {
-          // For regular users, get their company memberships with explicit column selection to avoid RLS recursion
-          const { data: memberData } = await supabase
+          // For regular users, get their company memberships
+          const { data: memberData, error: memberError } = await supabase
             .from('company_members')
-            .select('id, user_id, company_id, role, created_at')
+            .select(`
+              id,
+              user_id,
+              company_id,
+              role,
+              created_at,
+              companies:company_id (
+                id,
+                name,
+                segment,
+                plan,
+                monthly_revenue,
+                employees,
+                status,
+                created_at,
+                updated_at
+              )
+            `)
             .eq('user_id', supabaseUser.id);
 
-          if (memberData && memberData.length > 0) {
-            // Fetch companies separately to avoid RLS recursion
-            const companyIds = memberData.map(member => member.company_id);
-            const { data: companiesData } = await supabase
-              .from('companies')
-              .select('*')
-              .in('id', companyIds);
-
-            // Combine the data
-            companyMembers = memberData.map(member => ({
-              ...member,
-              companies: companiesData?.find(company => company.id === member.company_id)
-            }));
-
-            currentCompany = companyMembers[0]?.companies;
+          if (memberError) {
+            console.warn('Error fetching company memberships:', memberError);
+          } else if (memberData && memberData.length > 0) {
+            companyMembers = memberData;
+            currentCompany = memberData[0]?.companies as Company;
           }
         }
       } catch (error) {
