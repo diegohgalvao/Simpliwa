@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/dashboard/Sidebar';
 import Overview from '../components/dashboard/Overview';
-import BusinessIntelligence from '../components/dashboard/BusinessIntelligence';
 import Analytics from '../components/dashboard/Analytics';
 import Messages from '../components/dashboard/Messages';
 import Customers from '../components/dashboard/Customers';
@@ -37,7 +36,7 @@ const Dashboard = () => {
             index 
             element={
               <Navigate 
-                to={user?.profile?.role === 'super_admin' ? 'business-intelligence' : 'overview'} 
+                to={user?.profile?.role === 'super_admin' ? 'empresas' : 'overview'} 
                 replace 
               />
             } 
@@ -46,12 +45,11 @@ const Dashboard = () => {
           {/* Super Admin Routes */}
           {user?.profile?.role === 'super_admin' ? (
             <>
-              <Route path="business-intelligence\" element={<BusinessIntelligence />} />
               <Route path="empresas" element={<Companies />} />
               <Route path="usuarios" element={<Users />} />
               <Route path="configuracoes" element={<Settings />} />
-              {/* Redirect any other routes to business intelligence for super admin */}
-              <Route path="*" element={<Navigate to="business-intelligence\" replace />} />
+              {/* Redirect any other routes to empresas for super admin */}
+              <Route path="*" element={<Navigate to="empresas" replace />} />
             </>
           ) : (
             <>
@@ -66,7 +64,7 @@ const Dashboard = () => {
               <Route path="notificacoes" element={<Notifications />} />
               <Route path="configuracoes" element={<Settings />} />
               {/* Redirect any other routes to overview for regular users */}
-              <Route path="*" element={<Navigate to="overview\" replace />} />
+              <Route path="*" element={<Navigate to="overview" replace />} />
             </>
           )}
         </Routes>
