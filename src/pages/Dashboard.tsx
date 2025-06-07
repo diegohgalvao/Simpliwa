@@ -31,23 +31,43 @@ const Dashboard = () => {
       
       <main className="flex-1 overflow-auto">
         <Routes>
-          <Route index element={<Navigate to="overview\" replace />} />
-          <Route path="overview" element={<Overview />} />
-          <Route path="vendas" element={<Sales />} />
-          <Route path="produtos" element={<Products />} />
-          <Route path="clientes" element={<Customers />} />
-          <Route path="mensagens" element={<Messages />} />
-          <Route path="equipe" element={<Team />} />
-          <Route path="relatorios" element={<Analytics />} />
-          <Route path="notificacoes" element={<Notifications />} />
-          {user?.profile?.role === 'super_admin' && (
+          {/* Default route based on user role */}
+          <Route 
+            index 
+            element={
+              <Navigate 
+                to={user?.profile?.role === 'super_admin' ? 'business-intelligence' : 'overview'} 
+                replace 
+              />
+            } 
+          />
+          
+          {/* Super Admin Routes */}
+          {user?.profile?.role === 'super_admin' ? (
             <>
-              <Route path="empresas\" element={<Companies />} />
+              <Route path="business-intelligence\" element={<Overview />} />
+              <Route path="empresas" element={<Companies />} />
               <Route path="usuarios" element={<Users />} />
+              <Route path="configuracoes" element={<Settings />} />
+              {/* Redirect any other routes to business intelligence for super admin */}
+              <Route path="*" element={<Navigate to="business-intelligence\" replace />} />
+            </>
+          ) : (
+            <>
+              {/* Regular User Routes */}
+              <Route path="overview" element={<Overview />} />
+              <Route path="vendas" element={<Sales />} />
+              <Route path="produtos" element={<Products />} />
+              <Route path="clientes" element={<Customers />} />
+              <Route path="mensagens" element={<Messages />} />
+              <Route path="equipe" element={<Team />} />
+              <Route path="relatorios" element={<Analytics />} />
+              <Route path="notificacoes" element={<Notifications />} />
+              <Route path="configuracoes" element={<Settings />} />
+              {/* Redirect any other routes to overview for regular users */}
+              <Route path="*" element={<Navigate to="overview\" replace />} />
             </>
           )}
-          <Route path="configuracoes" element={<Settings />} />
-          <Route path="*" element={<Navigate to="overview\" replace />} />
         </Routes>
       </main>
     </div>
