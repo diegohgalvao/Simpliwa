@@ -1,20 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, Users, DollarSign, TrendingUp, Eye, Crown, BarChart3, Calendar, AlertTriangle, Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
-import { Company } from '../../types';
+import { useRealData } from '../../hooks/useRealData';
 
 const Companies = () => {
   const { user, switchCompany } = useAuth();
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState({
-    totalCompanies: 0,
-    totalRevenue: 0,
-    totalEmployees: 0,
-    activeCompanies: 0
-  });
+  const { data, loading, error, refreshData } = useRealData();
 
   // Verificar se usuário tem acesso
   if (user?.profile?.role !== 'super_admin') {
@@ -39,47 +30,7 @@ const Companies = () => {
     );
   }
 
-  useEffect(() => {
-    fetchCompanies();
-  }, []);
-
-  const fetchCompanies = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const { data: companiesData, error: companiesError } = await supabase
-        .from('companies')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (companiesError) {
-        throw companiesError;
-      }
-
-      setCompanies(companiesData || []);
-
-      // Calcular estatísticas
-      const totalRevenue = (companiesData || []).reduce((sum, company) => sum + (company.monthly_revenue || 0), 0);
-      const totalEmployees = (companiesData || []).reduce((sum, company) => sum + (company.employees || 0), 0);
-      const activeCompanies = (companiesData || []).filter(c => c.status === 'active').length;
-
-      setStats({
-        totalCompanies: companiesData?.length || 0,
-        totalRevenue,
-        totalEmployees,
-        activeCompanies
-      });
-
-    } catch (error) {
-      console.error('Erro ao buscar empresas:', error);
-      setError('Erro ao carregar dados das empresas');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleViewCompany = (company: Company) => {
+  const handleViewCompany = (company: any) => {
     // Simular switch para a empresa (para super admin visualizar dados)
     switchCompany(company.id);
   };
@@ -140,6 +91,14 @@ const Companies = () => {
     }
   };
 
+  // Calcular estatísticas
+  const stats = {
+    totalCompanies: data.companies.length,
+    totalRevenue: data.companies.reduce((sum, company) => sum + (company.monthly_revenue || 0), 0),
+    totalEmployees: data.companies.reduce((sum, company) => sum + (company.employees || 0), 0),
+    activeCompanies: data.companies.filter(c => c.status === 'active').length
+  };
+
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
@@ -160,7 +119,7 @@ const Companies = () => {
             <span>{error}</span>
           </div>
           <button 
-            onClick={fetchCompanies}
+            onClick={refreshData}
             className="mt-2 text-sm underline hover:no-underline"
           >
             Tentar novamente
@@ -180,7 +139,7 @@ const Companies = () => {
             Análise de Empresas
           </h1>
           <p className="text-gray-600 mt-1">
-            Visão estratégica de todas as empresas da plataforma SimpliWa
+            Visão estratégica de todas as empresas da plataforma SimpliWa (Dados Reais)
           </p>
         </div>
         <div className="text-sm text-gray-500">
@@ -195,8 +154,8 @@ const Companies = () => {
           <div>
             <h3 className="text-sm font-medium text-blue-800">Painel de Business Intelligence</h3>
             <p className="text-sm text-blue-700 mt-1">
-              Use estes dados para identificar oportunidades de crescimento, padrões de uso e insights estratégicos 
-              para expandir o negócio SimpliWa.
+              Dados reais do banco de dados. Use estas informações para identificar oportunidades de crescimento, 
+              padrões de uso e insights estratégicos para expandir o negócio SimpliWa.
             </p>
           </div>
         </div>
@@ -256,21 +215,21 @@ const Companies = () => {
       {/* Companies Grid */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Empresas Cadastradas</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Empresas Cadastradas (Dados Reais)</h2>
           <div className="flex items-center space-x-2 text-sm text-gray-500">
             <Calendar className="h-4 w-4" />
             <span>Ordenado por data de cadastro</span>
           </div>
         </div>
 
-        {companies.length === 0 ? (
+        {data.companies.length === 0 ? (
           <div className="text-center py-12">
             <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500">Nenhuma empresa cadastrada ainda</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {companies.map((company) => (
+            {data.companies.map((company) => (
               <div key={company.id} className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
@@ -348,7 +307,7 @@ const Companies = () => {
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Revenue Analysis */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Análise de Receita</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Análise de Receita (Dados Reais)</h3>
           <div className="space-y-4">
             <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
               <span className="text-sm text-gray-700">Receita média por empresa:</span>
@@ -372,19 +331,19 @@ const Companies = () => {
             <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
               <span className="text-sm text-gray-700">Empresas em trial:</span>
               <span className="font-bold text-yellow-700">
-                {companies.filter(c => c.status === 'trial').length}
+                {data.companies.filter(c => c.status === 'trial').length}
               </span>
             </div>
             <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
               <span className="text-sm text-gray-700">Potencial upsell:</span>
               <span className="font-bold text-purple-700">
-                {companies.filter(c => c.plan === 'starter' && (c.monthly_revenue || 0) > 30000).length}
+                {data.companies.filter(c => c.plan === 'starter' && (c.monthly_revenue || 0) > 30000).length}
               </span>
             </div>
             <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
               <span className="text-sm text-gray-700">Empresas de alto valor:</span>
               <span className="font-bold text-orange-700">
-                {companies.filter(c => (c.monthly_revenue || 0) > 100000).length}
+                {data.companies.filter(c => (c.monthly_revenue || 0) > 100000).length}
               </span>
             </div>
           </div>

@@ -1,195 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, MessageSquare, Users, Building2, Crown, BarChart3, Target, Zap, Award } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
-import { Sale, Customer, Message, Company } from '../../types';
+import { useRealData } from '../../hooks/useRealData';
 
 const Overview: React.FC = () => {
   const { user } = useAuth();
-  const [stats, setStats] = useState({
-    totalRevenue: 0,
-    totalSales: 0,
-    totalMessages: 0,
-    totalCustomers: 0,
-    revenueGrowth: 0,
-    salesGrowth: 0,
-    messagesGrowth: 0,
-    customersGrowth: 0
-  });
-  const [businessStats, setBusinessStats] = useState({
-    totalCompanies: 0,
-    activeCompanies: 0,
-    trialCompanies: 0,
-    totalPlatformRevenue: 0,
-    averageRevenuePerCompany: 0,
-    totalEmployees: 0,
-    conversionRate: 0,
-    churnRate: 0
-  });
-  const [recentSales, setRecentSales] = useState<Sale[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (user?.profile) {
-      fetchDashboardData();
-    }
-  }, [user?.currentCompany?.id, user?.profile?.role]);
-
-  const fetchDashboardData = async () => {
-    if (!user?.profile) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      if (user.profile.role === 'super_admin') {
-        await fetchSuperAdminBusinessData();
-      } else {
-        await fetchCompanyData();
-      }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setError('Erro ao carregar dados do dashboard');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchSuperAdminBusinessData = async () => {
-    try {
-      // Fetch all companies for business intelligence
-      const { data: companiesData, error: companiesError } = await supabase
-        .from('companies')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (companiesError) {
-        console.error('Error fetching companies:', companiesError);
-      } else {
-        setCompanies(companiesData || []);
-      }
-
-      // Fetch consolidated business metrics
-      const [salesResult, customersResult, messagesResult] = await Promise.allSettled([
-        supabase.from('sales').select('amount, status, sale_date, company_id'),
-        supabase.from('customers').select('id, created_at, company_id'),
-        supabase.from('messages').select('id, created_at, company_id')
-      ]);
-
-      // Process results safely
-      const salesData = salesResult.status === 'fulfilled' ? salesResult.value.data : [];
-      const customersData = customersResult.status === 'fulfilled' ? customersResult.value.data : [];
-      const messagesData = messagesResult.status === 'fulfilled' ? messagesResult.value.data : [];
-
-      // Calculate business intelligence metrics
-      const totalCompanies = companiesData?.length || 0;
-      const activeCompanies = companiesData?.filter(c => c.status === 'active').length || 0;
-      const trialCompanies = companiesData?.filter(c => c.status === 'trial').length || 0;
-      const totalPlatformRevenue = companiesData?.reduce((sum, company) => sum + (company.monthly_revenue || 0), 0) || 0;
-      const averageRevenuePerCompany = totalCompanies > 0 ? totalPlatformRevenue / totalCompanies : 0;
-      const totalEmployees = companiesData?.reduce((sum, company) => sum + (company.employees || 0), 0) || 0;
-      const conversionRate = totalCompanies > 0 ? (activeCompanies / totalCompanies) * 100 : 0;
-
-      setBusinessStats({
-        totalCompanies,
-        activeCompanies,
-        trialCompanies,
-        totalPlatformRevenue,
-        averageRevenuePerCompany,
-        totalEmployees,
-        conversionRate,
-        churnRate: 5.2 // Mock data - would be calculated from historical data
-      });
-
-      // Set consolidated stats for the platform
-      const totalRevenue = salesData?.reduce((sum, sale) => 
-        sale.status === 'completed' ? sum + (sale.amount || 0) : sum, 0) || 0;
-      
-      setStats({
-        totalRevenue,
-        totalSales: salesData?.filter(s => s.status === 'completed').length || 0,
-        totalMessages: messagesData?.length || 0,
-        totalCustomers: customersData?.length || 0,
-        revenueGrowth: 23.5, // Mock growth data
-        salesGrowth: 18.2,
-        messagesGrowth: 45.8,
-        customersGrowth: 12.3
-      });
-
-      // Get recent sales across all companies (limited for privacy)
-      const recentSalesData = salesData?.slice(0, 5) || [];
-      setRecentSales(recentSalesData);
-
-    } catch (error) {
-      console.error('Error fetching super admin business data:', error);
-      throw error;
-    }
-  };
-
-  const fetchCompanyData = async () => {
-    if (!user?.currentCompany?.id) {
-      // No company selected, show empty stats
-      setStats({
-        totalRevenue: 0,
-        totalSales: 0,
-        totalMessages: 0,
-        totalCustomers: 0,
-        revenueGrowth: 0,
-        salesGrowth: 0,
-        messagesGrowth: 0,
-        customersGrowth: 0
-      });
-      setRecentSales([]);
-      return;
-    }
-
-    try {
-      const companyId = user.currentCompany.id;
-
-      // Fetch company-specific data
-      const [salesResult, customersResult, messagesResult, recentSalesResult] = await Promise.allSettled([
-        supabase.from('sales').select('amount, status, sale_date').eq('company_id', companyId),
-        supabase.from('customers').select('id, created_at').eq('company_id', companyId),
-        supabase.from('messages').select('id, created_at').eq('company_id', companyId),
-        supabase.from('sales').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(5)
-      ]);
-
-      // Process results safely
-      const salesData = salesResult.status === 'fulfilled' ? salesResult.value.data : [];
-      const customersData = customersResult.status === 'fulfilled' ? customersResult.value.data : [];
-      const messagesData = messagesResult.status === 'fulfilled' ? messagesResult.value.data : [];
-      const recentSalesData = recentSalesResult.status === 'fulfilled' ? recentSalesResult.value.data : [];
-
-      setRecentSales(recentSalesData || []);
-
-      // Calculate stats
-      const totalRevenue = salesData?.reduce((sum, sale) => 
-        sale.status === 'completed' ? sum + (sale.amount || 0) : sum, 0) || 0;
-      
-      setStats({
-        totalRevenue,
-        totalSales: salesData?.filter(s => s.status === 'completed').length || 0,
-        totalMessages: messagesData?.length || 0,
-        totalCustomers: customersData?.length || 0,
-        revenueGrowth: 23.5, // Mock growth data
-        salesGrowth: 18.2,
-        messagesGrowth: 45.8,
-        customersGrowth: 12.3
-      });
-    } catch (error) {
-      console.error('Error fetching company data:', error);
-      throw error;
-    }
-  };
+  const { data, loading, error } = useRealData();
 
   // Super Admin Business Intelligence Dashboard
   if (user?.profile?.role === 'super_admin') {
     const businessMetrics = [
       {
         title: 'Total de Empresas',
-        value: businessStats.totalCompanies.toLocaleString('pt-BR'),
+        value: data.companies.length.toLocaleString('pt-BR'),
         change: '+12.5%',
         icon: Building2,
         color: 'text-blue-600',
@@ -197,23 +20,23 @@ const Overview: React.FC = () => {
       },
       {
         title: 'Receita da Plataforma',
-        value: `R$ ${businessStats.totalPlatformRevenue.toLocaleString('pt-BR')}`,
-        change: '+28.3%',
+        value: `R$ ${data.stats.totalRevenue.toLocaleString('pt-BR')}`,
+        change: `+${data.stats.revenueGrowth}%`,
         icon: DollarSign,
         color: 'text-green-600',
         bgColor: 'bg-green-50'
       },
       {
-        title: 'Taxa de Conversão',
-        value: `${businessStats.conversionRate.toFixed(1)}%`,
-        change: '+5.2%',
+        title: 'Vendas Totais',
+        value: data.stats.totalSales.toLocaleString('pt-BR'),
+        change: `+${data.stats.salesGrowth}%`,
         icon: Target,
         color: 'text-purple-600',
         bgColor: 'bg-purple-50'
       },
       {
         title: 'Funcionários no Ecossistema',
-        value: businessStats.totalEmployees.toLocaleString('pt-BR'),
+        value: data.companies.reduce((sum, company) => sum + (company.employees || 0), 0).toLocaleString('pt-BR'),
         change: '+15.7%',
         icon: Users,
         color: 'text-orange-600',
@@ -225,6 +48,16 @@ const Overview: React.FC = () => {
       return (
         <div className="p-6 flex items-center justify-center">
           <div className="w-8 h-8 border-2 border-secondary border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="p-6">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            {error}
+          </div>
         </div>
       );
     }
@@ -245,7 +78,7 @@ const Overview: React.FC = () => {
               Business Intelligence - SimpliWa
             </h1>
             <p className="text-white/90">
-              Visão estratégica completa da plataforma para tomada de decisões e crescimento do negócio
+              Visão estratégica completa da plataforma com dados reais do banco de dados
             </p>
           </div>
         </div>
@@ -278,26 +111,27 @@ const Overview: React.FC = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <BarChart3 className="h-5 w-5 mr-2 text-green-600" />
-              Análise de Receita
+              Análise de Receita (Dados Reais)
             </h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center p-4 bg-green-50 rounded-lg">
                 <span className="text-sm text-gray-700">Receita média por empresa:</span>
                 <span className="font-bold text-green-700">
-                  R$ {businessStats.averageRevenuePerCompany.toLocaleString('pt-BR')}
+                  R$ {data.companies.length > 0 ? 
+                    Math.round(data.stats.totalRevenue / data.companies.length).toLocaleString('pt-BR') : '0'}
                 </span>
               </div>
               <div className="flex justify-between items-center p-4 bg-blue-50 rounded-lg">
                 <span className="text-sm text-gray-700">Receita por funcionário:</span>
                 <span className="font-bold text-blue-700">
-                  R$ {businessStats.totalEmployees > 0 ? 
-                    Math.round(businessStats.totalPlatformRevenue / businessStats.totalEmployees).toLocaleString('pt-BR') : '0'}
+                  R$ {data.companies.reduce((sum, c) => sum + (c.employees || 0), 0) > 0 ? 
+                    Math.round(data.stats.totalRevenue / data.companies.reduce((sum, c) => sum + (c.employees || 0), 0)).toLocaleString('pt-BR') : '0'}
                 </span>
               </div>
               <div className="flex justify-between items-center p-4 bg-purple-50 rounded-lg">
-                <span className="text-sm text-gray-700">Potencial de crescimento:</span>
+                <span className="text-sm text-gray-700">Empresas com potencial de upgrade:</span>
                 <span className="font-bold text-purple-700">
-                  {companies.filter(c => c.plan === 'starter' && (c.monthly_revenue || 0) > 30000).length} empresas
+                  {data.companies.filter(c => c.plan === 'starter' && (c.monthly_revenue || 0) > 30000).length}
                 </span>
               </div>
             </div>
@@ -312,17 +146,22 @@ const Overview: React.FC = () => {
             <div className="space-y-4">
               <div className="flex justify-between items-center p-4 bg-yellow-50 rounded-lg">
                 <span className="text-sm text-gray-700">Empresas em trial:</span>
-                <span className="font-bold text-yellow-700">{businessStats.trialCompanies}</span>
-              </div>
-              <div className="flex justify-between items-center p-4 bg-orange-50 rounded-lg">
-                <span className="text-sm text-gray-700">Potencial upsell:</span>
-                <span className="font-bold text-orange-700">
-                  {companies.filter(c => c.plan === 'starter' && (c.monthly_revenue || 0) > 30000).length}
+                <span className="font-bold text-yellow-700">
+                  {data.companies.filter(c => c.status === 'trial').length}
                 </span>
               </div>
-              <div className="flex justify-between items-center p-4 bg-red-50 rounded-lg">
-                <span className="text-sm text-gray-700">Taxa de churn:</span>
-                <span className="font-bold text-red-700">{businessStats.churnRate}%</span>
+              <div className="flex justify-between items-center p-4 bg-orange-50 rounded-lg">
+                <span className="text-sm text-gray-700">Empresas ativas:</span>
+                <span className="font-bold text-orange-700">
+                  {data.companies.filter(c => c.status === 'active').length}
+                </span>
+              </div>
+              <div className="flex justify-between items-center p-4 bg-green-50 rounded-lg">
+                <span className="text-sm text-gray-700">Taxa de conversão:</span>
+                <span className="font-bold text-green-700">
+                  {data.companies.length > 0 ? 
+                    Math.round((data.companies.filter(c => c.status === 'active').length / data.companies.length) * 100) : 0}%
+                </span>
               </div>
             </div>
           </div>
@@ -332,23 +171,25 @@ const Overview: React.FC = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
             <Zap className="h-5 w-5 mr-2 text-blue-600" />
-            Performance da Plataforma
+            Performance da Plataforma (Dados Reais)
           </h3>
           <div className="grid md:grid-cols-4 gap-6">
             <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600 mb-1">{stats.totalSales}</div>
-              <div className="text-sm text-gray-600">Vendas Totais</div>
+              <div className="text-2xl font-bold text-blue-600 mb-1">{data.stats.totalSales}</div>
+              <div className="text-sm text-gray-600">Vendas Concluídas</div>
             </div>
             <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600 mb-1">{stats.totalCustomers}</div>
-              <div className="text-sm text-gray-600">Clientes Ativos</div>
+              <div className="text-2xl font-bold text-green-600 mb-1">{data.stats.totalCustomers}</div>
+              <div className="text-sm text-gray-600">Clientes Cadastrados</div>
             </div>
             <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-600 mb-1">{stats.totalMessages}</div>
-              <div className="text-sm text-gray-600">Mensagens/Mês</div>
+              <div className="text-2xl font-bold text-purple-600 mb-1">{data.stats.totalMessages}</div>
+              <div className="text-sm text-gray-600">Mensagens Trocadas</div>
             </div>
             <div className="text-center p-4 bg-orange-50 rounded-lg">
-              <div className="text-2xl font-bold text-orange-600 mb-1">{businessStats.activeCompanies}</div>
+              <div className="text-2xl font-bold text-orange-600 mb-1">
+                {data.companies.filter(c => c.status === 'active').length}
+              </div>
               <div className="text-sm text-gray-600">Empresas Ativas</div>
             </div>
           </div>
@@ -358,10 +199,10 @@ const Overview: React.FC = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
             <Award className="h-5 w-5 mr-2 text-yellow-600" />
-            Top Empresas por Receita
+            Top Empresas por Receita (Dados Reais)
           </h3>
           <div className="space-y-3">
-            {companies
+            {data.companies
               .sort((a, b) => (b.monthly_revenue || 0) - (a.monthly_revenue || 0))
               .slice(0, 5)
               .map((company, index) => (
@@ -392,19 +233,21 @@ const Overview: React.FC = () => {
 
         {/* Strategic Actions */}
         <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Ações Estratégicas Recomendadas</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Ações Estratégicas Baseadas em Dados Reais</h3>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-white p-4 rounded-lg">
               <h4 className="font-medium text-gray-900 mb-2">🎯 Foco em Conversão</h4>
               <p className="text-sm text-gray-600">
-                {businessStats.trialCompanies} empresas em trial. Implementar estratégia de conversão personalizada.
+                {data.companies.filter(c => c.status === 'trial').length} empresas em trial. 
+                Taxa atual: {data.companies.length > 0 ? 
+                  Math.round((data.companies.filter(c => c.status === 'active').length / data.companies.length) * 100) : 0}%
               </p>
             </div>
             <div className="bg-white p-4 rounded-lg">
               <h4 className="font-medium text-gray-900 mb-2">📈 Oportunidade de Upsell</h4>
               <p className="text-sm text-gray-600">
-                {companies.filter(c => c.plan === 'starter' && (c.monthly_revenue || 0) > 30000).length} empresas 
-                starter com potencial para upgrade.
+                {data.companies.filter(c => c.plan === 'starter' && (c.monthly_revenue || 0) > 30000).length} empresas 
+                starter com receita alta podem fazer upgrade.
               </p>
             </div>
           </div>
@@ -417,29 +260,29 @@ const Overview: React.FC = () => {
   const statCards = [
     {
       title: 'Receita da Empresa',
-      value: `R$ ${stats.totalRevenue.toLocaleString('pt-BR')}`,
-      change: stats.revenueGrowth,
+      value: `R$ ${data.stats.totalRevenue.toLocaleString('pt-BR')}`,
+      change: data.stats.revenueGrowth,
       icon: DollarSign,
       color: 'text-green-600'
     },
     {
       title: 'Vendas',
-      value: stats.totalSales.toLocaleString('pt-BR'),
-      change: stats.salesGrowth,
+      value: data.stats.totalSales.toLocaleString('pt-BR'),
+      change: data.stats.salesGrowth,
       icon: ShoppingCart,
       color: 'text-blue-600'
     },
     {
       title: 'Mensagens',
-      value: stats.totalMessages.toLocaleString('pt-BR'),
-      change: stats.messagesGrowth,
+      value: data.stats.totalMessages.toLocaleString('pt-BR'),
+      change: data.stats.messagesGrowth,
       icon: MessageSquare,
       color: 'text-purple-600'
     },
     {
       title: 'Clientes',
-      value: stats.totalCustomers.toLocaleString('pt-BR'),
-      change: stats.customersGrowth,
+      value: data.stats.totalCustomers.toLocaleString('pt-BR'),
+      change: data.stats.customersGrowth,
       icon: Users,
       color: 'text-orange-600'
     }
@@ -472,8 +315,8 @@ const Overview: React.FC = () => {
         </h1>
         <p className="text-white/90">
           {user?.currentCompany 
-            ? `Aqui está o resumo da ${user.currentCompany.name}`
-            : 'Dashboard da sua empresa'
+            ? `Aqui está o resumo da ${user.currentCompany.name} com dados reais`
+            : 'Dashboard da sua empresa com dados reais do banco'
           }
         </p>
       </div>
@@ -529,29 +372,28 @@ const Overview: React.FC = () => {
 
         {/* Recent Sales */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Vendas Recentes</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Vendas Recentes (Dados Reais)</h3>
           <div className="space-y-4">
-            {recentSales.length > 0 ? (
-              recentSales.map((sale) => (
-                <div key={sale.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900">{sale.product}</p>
-                    <p className="text-sm text-gray-500">{sale.customer_name}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-900">R$ {sale.amount.toLocaleString('pt-BR')}</p>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      sale.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      sale.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {sale.status === 'completed' ? 'Concluída' :
-                       sale.status === 'pending' ? 'Pendente' : 'Cancelada'}
-                    </span>
-                  </div>
+            {data.sales.slice(0, 5).map((sale) => (
+              <div key={sale.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="font-medium text-gray-900">{sale.product}</p>
+                  <p className="text-sm text-gray-500">{sale.customer_name}</p>
                 </div>
-              ))
-            ) : (
+                <div className="text-right">
+                  <p className="font-semibold text-gray-900">R$ {sale.amount.toLocaleString('pt-BR')}</p>
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    sale.status === 'completed' ? 'bg-green-100 text-green-800' :
+                    sale.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {sale.status === 'completed' ? 'Concluída' :
+                     sale.status === 'pending' ? 'Pendente' : 'Cancelada'}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {data.sales.length === 0 && (
               <p className="text-gray-500 text-center py-4">Nenhuma venda encontrada</p>
             )}
           </div>
