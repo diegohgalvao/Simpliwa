@@ -41,7 +41,7 @@ export interface Database {
           id: string;
           name: string;
           avatar_url: string | null;
-          role: 'super_admin' | 'admin' | 'user';
+          role: 'super_admin' | 'admin' | 'manager' | 'operator' | 'viewer' | 'user';
           created_at: string;
           updated_at: string;
         };
@@ -49,7 +49,7 @@ export interface Database {
           id: string;
           name: string;
           avatar_url?: string | null;
-          role?: 'super_admin' | 'admin' | 'user';
+          role?: 'super_admin' | 'admin' | 'manager' | 'operator' | 'viewer' | 'user';
           created_at?: string;
           updated_at?: string;
         };
@@ -57,7 +57,7 @@ export interface Database {
           id?: string;
           name?: string;
           avatar_url?: string | null;
-          role?: 'super_admin' | 'admin' | 'user';
+          role?: 'super_admin' | 'admin' | 'manager' | 'operator' | 'viewer' | 'user';
           created_at?: string;
           updated_at?: string;
         };
@@ -67,22 +67,98 @@ export interface Database {
           id: string;
           user_id: string;
           company_id: string;
-          role: 'super_admin' | 'admin' | 'user';
+          role: 'super_admin' | 'admin' | 'manager' | 'operator' | 'viewer' | 'user';
           created_at: string;
         };
         Insert: {
           id?: string;
           user_id: string;
           company_id: string;
-          role?: 'super_admin' | 'admin' | 'user';
+          role?: 'super_admin' | 'admin' | 'manager' | 'operator' | 'viewer' | 'user';
           created_at?: string;
         };
         Update: {
           id?: string;
           user_id?: string;
           company_id?: string;
-          role?: 'super_admin' | 'admin' | 'user';
+          role?: 'super_admin' | 'admin' | 'manager' | 'operator' | 'viewer' | 'user';
           created_at?: string;
+        };
+      };
+      user_permissions: {
+        Row: {
+          id: string;
+          user_id: string;
+          company_id: string;
+          permission_type: string;
+          can_read: boolean;
+          can_write: boolean;
+          can_delete: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          company_id: string;
+          permission_type: string;
+          can_read?: boolean;
+          can_write?: boolean;
+          can_delete?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          company_id?: string;
+          permission_type?: string;
+          can_read?: boolean;
+          can_write?: boolean;
+          can_delete?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      products: {
+        Row: {
+          id: string;
+          company_id: string;
+          name: string;
+          description: string;
+          price: number;
+          stock: number;
+          category: string;
+          image_url: string | null;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          name: string;
+          description: string;
+          price: number;
+          stock: number;
+          category: string;
+          image_url?: string | null;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          name?: string;
+          description?: string;
+          price?: number;
+          stock?: number;
+          category?: string;
+          image_url?: string | null;
+          status?: string;
+          created_at?: string;
+          updated_at?: string;
         };
       };
       customers: {
@@ -212,7 +288,7 @@ export interface Database {
     Enums: {
       plan_type: 'starter' | 'professional' | 'enterprise';
       company_status: 'active' | 'trial' | 'suspended' | 'cancelled';
-      user_role: 'super_admin' | 'admin' | 'user';
+      user_role: 'super_admin' | 'admin' | 'manager' | 'operator' | 'viewer' | 'user';
       sale_status: 'completed' | 'pending' | 'cancelled';
       message_type: 'incoming' | 'outgoing';
       message_status: 'sent' | 'delivered' | 'read';

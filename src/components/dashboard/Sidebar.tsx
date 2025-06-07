@@ -15,7 +15,9 @@ import {
   UserCheck,
   Bell,
   Crown,
-  Target
+  Target,
+  Shield,
+  Eye
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -33,17 +35,43 @@ const Sidebar: React.FC = () => {
         { id: 'configuracoes', label: 'Configurações', icon: Settings, path: '/dashboard/configuracoes' }
       ];
     } else {
-      return [
-        { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard, path: '/dashboard/overview' },
-        { id: 'vendas', label: 'Vendas', icon: ShoppingCart, path: '/dashboard/vendas' },
-        { id: 'produtos', label: 'Produtos', icon: Package, path: '/dashboard/produtos' },
-        { id: 'clientes', label: 'Clientes', icon: Users, path: '/dashboard/clientes' },
-        { id: 'mensagens', label: 'Mensagens', icon: MessageSquare, path: '/dashboard/mensagens' },
-        { id: 'equipe', label: 'Equipe', icon: UserCheck, path: '/dashboard/equipe' },
-        { id: 'relatorios', label: 'Relatórios', icon: BarChart3, path: '/dashboard/relatorios' },
-        { id: 'notificacoes', label: 'Notificações', icon: Bell, path: '/dashboard/notificacoes' },
-        { id: 'configuracoes', label: 'Configurações', icon: Settings, path: '/dashboard/configuracoes' }
+      // Menu baseado no role do usuário
+      const baseItems = [
+        { id: 'overview', label: 'Visão Geral', icon: LayoutDashboard, path: '/dashboard/overview' }
       ];
+
+      // Verificar permissões do usuário atual
+      const userRole = user?.companies?.find(cm => cm.company_id === user.currentCompany?.id)?.role || 'user';
+      
+      // Adicionar itens baseados no role
+      if (['admin', 'manager', 'operator'].includes(userRole)) {
+        baseItems.push(
+          { id: 'vendas', label: 'Vendas', icon: ShoppingCart, path: '/dashboard/vendas' },
+          { id: 'clientes', label: 'Clientes', icon: Users, path: '/dashboard/clientes' },
+          { id: 'mensagens', label: 'Mensagens', icon: MessageSquare, path: '/dashboard/mensagens' }
+        );
+      }
+
+      if (['admin', 'manager'].includes(userRole)) {
+        baseItems.push(
+          { id: 'produtos', label: 'Produtos', icon: Package, path: '/dashboard/produtos' },
+          { id: 'equipe', label: 'Equipe', icon: UserCheck, path: '/dashboard/equipe' },
+          { id: 'relatorios', label: 'Relatórios', icon: BarChart3, path: '/dashboard/relatorios' }
+        );
+      }
+
+      if (userRole === 'admin') {
+        baseItems.push(
+          { id: 'notificacoes', label: 'Notificações', icon: Bell, path: '/dashboard/notificacoes' }
+        );
+      }
+
+      // Todos podem acessar configurações
+      baseItems.push(
+        { id: 'configuracoes', label: 'Configurações', icon: Settings, path: '/dashboard/configuracoes' }
+      );
+
+      return baseItems;
     }
   };
 
@@ -60,6 +88,44 @@ const Sidebar: React.FC = () => {
   const isActive = (path: string) => {
     return location.pathname === path;
   };
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'super_admin':
+        return <Crown className="h-3 w-3 text-yellow-600" />;
+      case 'admin':
+        return <Shield className="h-3 w-3 text-red-600" />;
+      case 'manager':
+        return <Users className="h-3 w-3 text-blue-600" />;
+      case 'operator':
+        return <UserCheck className="h-3 w-3 text-green-600" />;
+      case 'viewer':
+        return <Eye className="h-3 w-3 text-gray-600" />;
+      default:
+        return null;
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'super_admin':
+        return 'Super Admin';
+      case 'admin':
+        return 'Admin da Empresa';
+      case 'manager':
+        return 'Gerente';
+      case 'operator':
+        return 'Operacional';
+      case 'viewer':
+        return 'Consulta';
+      default:
+        return 'Usuário';
+    }
+  };
+
+  const currentUserRole = user?.profile?.role === 'super_admin' 
+    ? 'super_admin' 
+    : user?.companies?.find(cm => cm.company_id === user.currentCompany?.id)?.role || 'user';
 
   return (
     <div className="bg-white h-screen w-64 shadow-lg flex flex-col">
@@ -86,13 +152,10 @@ const Sidebar: React.FC = () => {
               {user?.profile?.name}
             </p>
             <div className="flex items-center space-x-1">
-              <p className="text-xs text-gray-500 capitalize">
-                {user?.profile?.role === 'super_admin' ? 'Super Admin' : 
-                 user?.profile?.role === 'admin' ? 'Administrador' : 'Usuário'}
+              {getRoleIcon(currentUserRole)}
+              <p className="text-xs text-gray-500">
+                {getRoleLabel(currentUserRole)}
               </p>
-              {user?.profile?.role === 'super_admin' && (
-                <Crown className="h-3 w-3 text-yellow-600" />
-              )}
             </div>
           </div>
         </div>
@@ -127,6 +190,22 @@ const Sidebar: React.FC = () => {
             🔐 Acesso Total ao Sistema
           </div>
         )}
+
+        {/* Role-based Access Info */}
+        {user?.profile?.role !== 'super_admin' && (
+          <div className="mt-2 p-2 bg-gray-50 rounded-lg">
+            <div className="text-xs text-gray-600">
+              <strong>Nível de Acesso:</strong>
+            </div>
+            <div className="text-xs text-gray-700 mt-1">
+              {currentUserRole === 'admin' && '• Gestão completa da empresa'}
+              {currentUserRole === 'manager' && '• Gestão de setor'}
+              {currentUserRole === 'operator' && '• Operações do dia a dia'}
+              {currentUserRole === 'viewer' && '• Apenas visualização'}
+              {currentUserRole === 'user' && '• Acesso básico'}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
@@ -159,6 +238,46 @@ const Sidebar: React.FC = () => {
             <p className="text-xs text-yellow-700">
               Você tem acesso completo a todas as empresas e dados do sistema SimpliWa.
             </p>
+          </div>
+        )}
+
+        {/* Role Permissions Info */}
+        {user?.profile?.role !== 'super_admin' && (
+          <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center mb-2">
+              <Shield className="h-4 w-4 text-blue-600 mr-2" />
+              <span className="text-xs font-medium text-blue-800">Suas Permissões</span>
+            </div>
+            <div className="text-xs text-blue-700 space-y-1">
+              {currentUserRole === 'admin' && (
+                <>
+                  <div>✓ Gestão completa da empresa</div>
+                  <div>✓ Gerenciar equipe</div>
+                  <div>✓ Relatórios avançados</div>
+                </>
+              )}
+              {currentUserRole === 'manager' && (
+                <>
+                  <div>✓ Gestão de produtos</div>
+                  <div>✓ Relatórios do setor</div>
+                  <div>✓ Supervisão de equipe</div>
+                </>
+              )}
+              {currentUserRole === 'operator' && (
+                <>
+                  <div>✓ Registrar vendas</div>
+                  <div>✓ Atender clientes</div>
+                  <div>✓ Consultar produtos</div>
+                </>
+              )}
+              {currentUserRole === 'viewer' && (
+                <>
+                  <div>✓ Visualizar relatórios</div>
+                  <div>✓ Consultar dados</div>
+                  <div>✗ Sem edição</div>
+                </>
+              )}
+            </div>
           </div>
         )}
       </nav>
