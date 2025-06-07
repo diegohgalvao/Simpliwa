@@ -7,7 +7,11 @@ interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signUp: (email: string, password: string, name: string) => Promise<{ error?: string }>;
+  signUp: (email: string, password: string, name: string, companyData?: {
+    name: string;
+    segment: string;
+    plan: 'starter' | 'professional' | 'enterprise';
+  }) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   switchCompany: (companyId: string) => void;
   refreshUserData: () => Promise<void>;
@@ -44,7 +48,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           .from('profiles')
           .select('*')
           .eq('id', supabaseUser.id)
-          .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no rows
+          .maybeSingle();
 
         if (profileError) {
           console.error('Error fetching profile:', profileError);
@@ -67,7 +71,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           if (createError) {
             console.error('Error creating profile:', createError);
-            // Create a fallback profile object
             profile = {
               id: supabaseUser.id,
               name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
@@ -85,7 +88,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } catch (error) {
         console.error('Unexpected error fetching profile:', error);
-        // Create a fallback profile object
         profile = {
           id: supabaseUser.id,
           name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
@@ -105,11 +107,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       try {
         if (profile.role === 'super_admin') {
-          // Super admin não deve estar atrelado a nenhuma empresa específica
-          // Não definir currentCompany para super admin
           console.log('Super admin detected - no company assignment');
         } else {
-          // For regular users, get their company memberships
           const { data: memberData, error: memberError } = await supabase
             .from('company_members')
             .select(`
@@ -141,7 +140,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } catch (error) {
         console.error('Error fetching companies:', error);
-        // Continue without companies - the app should still work
       }
 
       const authUser: AuthUser = {
@@ -179,12 +177,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         console.log('Initializing auth...');
         
-        // Get initial session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
           console.error('Session error:', sessionError);
-          // Clear any invalid session data
           await supabase.auth.signOut();
           if (mounted) {
             setUser(null);
@@ -197,7 +193,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (session?.user && mounted) {
           console.log('Initial session found:', session.user.id);
           
-          // Verify the session is still valid
           const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
           
           if (userError || !currentUser) {
@@ -217,7 +212,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } catch (error) {
         console.error('Error in initializeAuth:', error);
-        // Clear any problematic session data
         try {
           await supabase.auth.signOut();
         } catch (signOutError) {
@@ -236,7 +230,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     initializeAuth();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id);
@@ -266,7 +259,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setLoading(false);
           }
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          // Don't show loading for token refresh, but update user data
           try {
             const userData = await fetchUserData(session.user);
             if (mounted) {
@@ -274,7 +266,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
           } catch (error) {
             console.error('Error handling token refresh:', error);
-            // If token refresh fails, sign out
             await supabase.auth.signOut();
             if (mounted) {
               setUser(null);
@@ -302,7 +293,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) {
         setLoading(false);
         
-        // Handle specific error codes
         if (error.message.includes('Invalid login credentials')) {
           return { error: 'Email ou senha incorretos' };
         } else if (error.message.includes('Email not confirmed') || 
@@ -316,12 +306,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
 
-      // Success - auth state change will handle the rest
       return {};
     } catch (error: any) {
       setLoading(false);
       
-      // Check for email confirmation errors in catch block too
       const errorStr = String(error);
       if (errorStr.includes('email_not_confirmed') || 
           errorStr.includes('Email not confirmed') ||
@@ -333,7 +321,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signUp = async (email: string, password: string, name: string) => {
+  const signUp = async (
+    email: string, 
+    password: string, 
+    name: string, 
+    companyData?: {
+      name: string;
+      segment: string;
+      plan: 'starter' | 'professional' | 'enterprise';
+    }
+  ) => {
     try {
       setLoading(true);
       
@@ -350,6 +347,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         options: {
           data: {
             name,
+            companyData,
           },
         },
       });
@@ -371,6 +369,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
         
         return { error: error.message };
+      }
+
+      // Se há companyData, criar a empresa após o usuário ser criado
+      if (data.user && companyData) {
+        try {
+          // Aguardar um pouco para garantir que o usuário foi criado
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Criar a empresa
+          const { data: companyResult, error: companyError } = await supabase
+            .from('companies')
+            .insert({
+              name: companyData.name,
+              segment: companyData.segment,
+              plan: companyData.plan,
+              monthly_revenue: 0,
+              employees: 1,
+              status: 'trial'
+            })
+            .select()
+            .single();
+
+          if (companyError) {
+            console.error('Error creating company:', companyError);
+          } else if (companyResult) {
+            // Adicionar o usuário como admin da empresa
+            const { error: memberError } = await supabase
+              .from('company_members')
+              .insert({
+                user_id: data.user.id,
+                company_id: companyResult.id,
+                role: 'admin'
+              });
+
+            if (memberError) {
+              console.error('Error adding user as company admin:', memberError);
+            }
+          }
+        } catch (companyCreationError) {
+          console.error('Error in company creation process:', companyCreationError);
+          // Não retornar erro aqui, pois o usuário foi criado com sucesso
+        }
       }
 
       if (data.user && !data.user.email_confirmed_at) {
@@ -395,17 +435,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await supabase.auth.signOut();
       setUser(null);
     } catch (error: any) {
-      // Check if this is the specific 'user_not_found' error
       const errorMessage = error?.message || String(error);
       if (errorMessage.includes('user_not_found') || 
           errorMessage.includes('User from sub claim in JWT does not exist')) {
-        // This is expected when the user account has been deleted but the client still has a JWT
         console.warn('User account not found during logout - clearing local session');
         setUser(null);
       } else {
-        // For other errors, log them normally
         console.error('Error signing out:', error);
-        // Still clear the user state to ensure logout completes
         setUser(null);
       }
     } finally {
@@ -415,7 +451,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const switchCompany = (companyId: string) => {
     if (!user || user.profile?.role === 'super_admin') {
-      // Super admin não deve ter empresa atual
       return;
     }
 
