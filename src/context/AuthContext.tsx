@@ -240,10 +240,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) {
         setLoading(false);
         
-        // Handle specific error codes
+        // Handle specific error codes and messages
         if (error.message.includes('Invalid login credentials')) {
           return { error: 'Email ou senha incorretos' };
-        } else if (error.message.includes('Email not confirmed') || error.message.includes('email_not_confirmed')) {
+        } else if (error.message.includes('Email not confirmed') || 
+                   error.message.includes('email_not_confirmed') ||
+                   (error as any).code === 'email_not_confirmed') {
           return { error: 'Email not confirmed' };
         } else {
           return { error: error.message };
@@ -252,8 +254,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Don't set loading to false here, let the auth state change handle it
       return {};
-    } catch (error) {
+    } catch (error: any) {
       setLoading(false);
+      
+      // Check if the error contains email_not_confirmed in the response
+      if (error?.message?.includes('email_not_confirmed') || 
+          error?.code === 'email_not_confirmed' ||
+          (typeof error === 'string' && error.includes('email_not_confirmed'))) {
+        return { error: 'Email not confirmed' };
+      }
+      
       return { error: 'Erro inesperado ao fazer login' };
     }
   };
