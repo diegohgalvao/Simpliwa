@@ -31,7 +31,7 @@ const Dashboard = () => {
       
       <main className="flex-1 overflow-auto">
         <Routes>
-          <Route index element={<Navigate to="overview" replace />} />
+          <Route index element={<Navigate to="overview\" replace />} />
           <Route path="overview" element={<Overview />} />
           <Route path="vendas" element={<Sales />} />
           <Route path="produtos" element={<Products />} />
@@ -42,12 +42,12 @@ const Dashboard = () => {
           <Route path="notificacoes" element={<Notifications />} />
           {user?.profile?.role === 'super_admin' && (
             <>
-              <Route path="empresas" element={<Companies />} />
+              <Route path="empresas\" element={<Companies />} />
               <Route path="usuarios" element={<Users />} />
             </>
           )}
           <Route path="configuracoes" element={<Settings />} />
-          <Route path="*" element={<Navigate to="overview" replace />} />
+          <Route path="*" element={<Navigate to="overview\" replace />} />
         </Routes>
       </main>
     </div>
