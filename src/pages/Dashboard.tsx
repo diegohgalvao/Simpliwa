@@ -45,11 +45,11 @@ const Dashboard = () => {
           {/* Super Admin Routes */}
           {user?.profile?.role === 'super_admin' ? (
             <>
-              <Route path="empresas" element={<Companies />} />
+              <Route path="empresas\" element={<Companies />} />
               <Route path="usuarios" element={<Users />} />
               <Route path="configuracoes" element={<Settings />} />
               {/* Redirect any other routes to empresas for super admin */}
-              <Route path="*" element={<Navigate to="empresas" replace />} />
+              <Route path="*" element={<Navigate to="empresas\" replace />} />
             </>
           ) : (
             <>
@@ -64,7 +64,7 @@ const Dashboard = () => {
               <Route path="notificacoes" element={<Notifications />} />
               <Route path="configuracoes" element={<Settings />} />
               {/* Redirect any other routes to overview for regular users */}
-              <Route path="*" element={<Navigate to="overview" replace />} />
+              <Route path="*" element={<Navigate to="overview\" replace />} />
             </>
           )}
         </Routes>
