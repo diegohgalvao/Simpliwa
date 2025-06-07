@@ -21,16 +21,18 @@ const Overview: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDashboardData();
+    if (user?.profile) {
+      fetchDashboardData();
+    }
   }, [user?.currentCompany?.id, user?.profile?.role]);
 
   const fetchDashboardData = async () => {
-    if (!user) return;
+    if (!user?.profile) return;
 
     try {
       setLoading(true);
 
-      if (user.profile?.role === 'super_admin') {
+      if (user.profile.role === 'super_admin') {
         // Super admin vê dados consolidados
         await fetchSuperAdminData();
       } else {
@@ -45,102 +47,123 @@ const Overview: React.FC = () => {
   };
 
   const fetchSuperAdminData = async () => {
-    // Buscar todas as empresas
-    const { data: companiesData } = await supabase
-      .from('companies')
-      .select('*');
+    try {
+      // Buscar todas as empresas
+      const { data: companiesData } = await supabase
+        .from('companies')
+        .select('*');
 
-    if (companiesData) {
-      setCompanies(companiesData);
+      if (companiesData) {
+        setCompanies(companiesData);
+      }
+
+      // Buscar estatísticas consolidadas
+      const { data: salesData } = await supabase
+        .from('sales')
+        .select('amount, status, sale_date');
+
+      const { data: customersData } = await supabase
+        .from('customers')
+        .select('id, created_at');
+
+      const { data: messagesData } = await supabase
+        .from('messages')
+        .select('id, created_at');
+
+      // Buscar vendas recentes
+      const { data: recentSalesData } = await supabase
+        .from('sales')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (recentSalesData) {
+        setRecentSales(recentSalesData);
+      }
+
+      // Calcular estatísticas
+      const totalRevenue = salesData?.reduce((sum, sale) => 
+        sale.status === 'completed' ? sum + sale.amount : sum, 0) || 0;
+      
+      setStats({
+        totalRevenue,
+        totalSales: salesData?.filter(s => s.status === 'completed').length || 0,
+        totalMessages: messagesData?.length || 0,
+        totalCustomers: customersData?.length || 0,
+        revenueGrowth: 23.5, // Mock growth data
+        salesGrowth: 18.2,
+        messagesGrowth: 45.8,
+        customersGrowth: 12.3
+      });
+    } catch (error) {
+      console.error('Error fetching super admin data:', error);
     }
-
-    // Buscar estatísticas consolidadas
-    const { data: salesData } = await supabase
-      .from('sales')
-      .select('amount, status, sale_date');
-
-    const { data: customersData } = await supabase
-      .from('customers')
-      .select('id, created_at');
-
-    const { data: messagesData } = await supabase
-      .from('messages')
-      .select('id, created_at');
-
-    // Buscar vendas recentes
-    const { data: recentSalesData } = await supabase
-      .from('sales')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(5);
-
-    if (recentSalesData) {
-      setRecentSales(recentSalesData);
-    }
-
-    // Calcular estatísticas
-    const totalRevenue = salesData?.reduce((sum, sale) => 
-      sale.status === 'completed' ? sum + sale.amount : sum, 0) || 0;
-    
-    setStats({
-      totalRevenue,
-      totalSales: salesData?.filter(s => s.status === 'completed').length || 0,
-      totalMessages: messagesData?.length || 0,
-      totalCustomers: customersData?.length || 0,
-      revenueGrowth: 23.5, // Mock growth data
-      salesGrowth: 18.2,
-      messagesGrowth: 45.8,
-      customersGrowth: 12.3
-    });
   };
 
   const fetchCompanyData = async () => {
-    if (!user?.currentCompany?.id) return;
-
-    const companyId = user.currentCompany.id;
-
-    // Buscar dados da empresa específica
-    const { data: salesData } = await supabase
-      .from('sales')
-      .select('amount, status, sale_date')
-      .eq('company_id', companyId);
-
-    const { data: customersData } = await supabase
-      .from('customers')
-      .select('id, created_at')
-      .eq('company_id', companyId);
-
-    const { data: messagesData } = await supabase
-      .from('messages')
-      .select('id, created_at')
-      .eq('company_id', companyId);
-
-    // Buscar vendas recentes
-    const { data: recentSalesData } = await supabase
-      .from('sales')
-      .select('*')
-      .eq('company_id', companyId)
-      .order('created_at', { ascending: false })
-      .limit(5);
-
-    if (recentSalesData) {
-      setRecentSales(recentSalesData);
+    if (!user?.currentCompany?.id) {
+      // Se não há empresa atual, usar dados mock ou vazios
+      setStats({
+        totalRevenue: 0,
+        totalSales: 0,
+        totalMessages: 0,
+        totalCustomers: 0,
+        revenueGrowth: 0,
+        salesGrowth: 0,
+        messagesGrowth: 0,
+        customersGrowth: 0
+      });
+      return;
     }
 
-    // Calcular estatísticas
-    const totalRevenue = salesData?.reduce((sum, sale) => 
-      sale.status === 'completed' ? sum + sale.amount : sum, 0) || 0;
-    
-    setStats({
-      totalRevenue,
-      totalSales: salesData?.filter(s => s.status === 'completed').length || 0,
-      totalMessages: messagesData?.length || 0,
-      totalCustomers: customersData?.length || 0,
-      revenueGrowth: 23.5, // Mock growth data
-      salesGrowth: 18.2,
-      messagesGrowth: 45.8,
-      customersGrowth: 12.3
-    });
+    try {
+      const companyId = user.currentCompany.id;
+
+      // Buscar dados da empresa específica
+      const { data: salesData } = await supabase
+        .from('sales')
+        .select('amount, status, sale_date')
+        .eq('company_id', companyId);
+
+      const { data: customersData } = await supabase
+        .from('customers')
+        .select('id, created_at')
+        .eq('company_id', companyId);
+
+      const { data: messagesData } = await supabase
+        .from('messages')
+        .select('id, created_at')
+        .eq('company_id', companyId);
+
+      // Buscar vendas recentes
+      const { data: recentSalesData } = await supabase
+        .from('sales')
+        .select('*')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (recentSalesData) {
+        setRecentSales(recentSalesData);
+      }
+
+      // Calcular estatísticas
+      const totalRevenue = salesData?.reduce((sum, sale) => 
+        sale.status === 'completed' ? sum + sale.amount : sum, 0) || 0;
+      
+      setStats({
+        totalRevenue,
+        totalSales: salesData?.filter(s => s.status === 'completed').length || 0,
+        totalMessages: messagesData?.length || 0,
+        totalCustomers: customersData?.length || 0,
+        revenueGrowth: 23.5, // Mock growth data
+        salesGrowth: 18.2,
+        messagesGrowth: 45.8,
+        customersGrowth: 12.3
+      });
+    } catch (error) {
+      console.error('Error fetching company data:', error);
+    }
   };
 
   const statCards = [
@@ -192,7 +215,9 @@ const Overview: React.FC = () => {
         <p className="text-white/90">
           {user?.profile?.role === 'super_admin' 
             ? 'Visão geral de todas as empresas do sistema'
-            : `Aqui está o resumo da ${user?.currentCompany?.name}`
+            : user?.currentCompany 
+              ? `Aqui está o resumo da ${user.currentCompany.name}`
+              : 'Dashboard da sua empresa'
           }
         </p>
       </div>
@@ -296,7 +321,7 @@ const Overview: React.FC = () => {
                      company.status === 'trial' ? 'Trial' : 'Suspenso'}
                   </span>
                   <span className="text-sm font-medium text-gray-900">
-                    R$ {company.monthly_revenue.toLocaleString('pt-BR')}
+                    R$ {company.monthly_revenue?.toLocaleString('pt-BR') || '0'}
                   </span>
                 </div>
               </div>

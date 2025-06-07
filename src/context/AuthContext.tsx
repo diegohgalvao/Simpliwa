@@ -35,86 +35,79 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('Fetching user data for:', supabaseUser.id);
       
-      // Buscar perfil do usuário com retry
-      let profile = null;
-      let retries = 3;
-      
-      while (retries > 0 && !profile) {
-        try {
-          const { data: profileData, error: profileError } = await supabase
+      // Buscar perfil do usuário
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', supabaseUser.id)
+        .single();
+
+      if (profileError) {
+        if (profileError.code === 'PGRST116') {
+          // Profile doesn't exist, create it
+          console.log('Profile not found, creating...');
+          const { data: newProfile, error: createError } = await supabase
             .from('profiles')
-            .select('*')
-            .eq('id', supabaseUser.id)
+            .insert({
+              id: supabaseUser.id,
+              name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
+              avatar_url: supabaseUser.user_metadata?.avatar_url || null,
+              role: 'user'
+            })
+            .select()
             .single();
 
-          if (profileError) {
-            if (profileError.code === 'PGRST116') {
-              // Profile doesn't exist, create it
-              console.log('Profile not found, creating...');
-              const { data: newProfile, error: createError } = await supabase
-                .from('profiles')
-                .insert({
-                  id: supabaseUser.id,
-                  name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
-                  avatar_url: supabaseUser.user_metadata?.avatar_url || null,
-                  role: 'user'
-                })
-                .select()
-                .single();
-
-              if (createError) {
-                console.error('Error creating profile:', createError);
-                retries--;
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                continue;
-              }
-              
-              profile = newProfile;
-            } else {
-              console.error('Error fetching profile:', profileError);
-              retries--;
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              continue;
-            }
-          } else {
-            profile = profileData;
+          if (createError) {
+            console.error('Error creating profile:', createError);
+            return null;
           }
-        } catch (error) {
-          console.error('Unexpected error fetching profile:', error);
-          retries--;
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
+          
+          // Use the newly created profile
+          const authUser: AuthUser = {
+            id: supabaseUser.id,
+            email: supabaseUser.email!,
+            profile: newProfile,
+            companies: [],
+            currentCompany: undefined
+          };
 
-      if (!profile) {
-        console.error('Failed to fetch or create profile after retries');
-        return null;
+          return authUser;
+        } else {
+          console.error('Error fetching profile:', profileError);
+          return null;
+        }
       }
 
       console.log('Profile loaded:', profile);
 
-      // Buscar empresas do usuário
-      const { data: companyMembers, error: companiesError } = await supabase
-        .from('company_members')
-        .select(`
-          *,
-          companies (*)
-        `)
-        .eq('user_id', supabaseUser.id);
+      // Buscar empresas do usuário apenas se não for super_admin
+      let companyMembers: CompanyMember[] = [];
+      let currentCompany: Company | undefined;
 
-      if (companiesError) {
-        console.error('Error fetching companies:', companiesError);
-      }
+      if (profile.role !== 'super_admin') {
+        const { data: memberData, error: companiesError } = await supabase
+          .from('company_members')
+          .select(`
+            *,
+            companies (*)
+          `)
+          .eq('user_id', supabaseUser.id);
 
-      // Para super admin, buscar todas as empresas
-      let allCompanies: Company[] = [];
-      if (profile.role === 'super_admin') {
+        if (companiesError) {
+          console.error('Error fetching companies:', companiesError);
+        } else {
+          companyMembers = memberData || [];
+          currentCompany = companyMembers[0]?.companies;
+        }
+      } else {
+        // Para super admin, buscar a primeira empresa disponível como contexto
         const { data: companies, error: allCompaniesError } = await supabase
           .from('companies')
-          .select('*');
+          .select('*')
+          .limit(1);
         
-        if (!allCompaniesError) {
-          allCompanies = companies || [];
+        if (!allCompaniesError && companies && companies.length > 0) {
+          currentCompany = companies[0];
         }
       }
 
@@ -122,8 +115,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         id: supabaseUser.id,
         email: supabaseUser.email!,
         profile,
-        companies: companyMembers || [],
-        currentCompany: companyMembers?.[0]?.companies || allCompanies[0]
+        companies: companyMembers,
+        currentCompany
       };
 
       console.log('Auth user created:', authUser);
@@ -214,46 +207,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true);
       
-      // Suprimir erros específicos do Supabase no console
-      const originalConsoleError = console.error;
-      console.error = (...args: any[]) => {
-        // Converter todos os argumentos para strings e verificar palavras-chave
-        const errorString = args.map(arg => {
-          if (typeof arg === 'object' && arg !== null) {
-            try {
-              return JSON.stringify(arg);
-            } catch {
-              return String(arg);
-            }
-          }
-          return String(arg);
-        }).join(' ');
-        
-        // Suprimir erros específicos relacionados à confirmação de email
-        if (errorString.includes('email_not_confirmed') || 
-            errorString.includes('Email not confirmed') ||
-            errorString.includes('Invalid login credentials') ||
-            errorString.includes('Supabase request failed') ||
-            (errorString.includes('400') && errorString.includes('auth'))) {
-          return; // Não mostrar no console
-        }
-        
-        // Mostrar outros erros normalmente
-        originalConsoleError.apply(console, args);
-      };
-
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      // Restaurar console.error original
-      console.error = originalConsoleError;
-
       if (error) {
         setLoading(false);
         
-        // Tratar códigos de erro específicos
+        // Handle specific error codes
         if (error.message.includes('Invalid login credentials')) {
           return { error: 'Email ou senha incorretos' };
         } else if (error.message.includes('Email not confirmed') || 
@@ -267,7 +229,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
 
-      // Não definir loading como false aqui, deixar o auth state change lidar com isso
+      // Don't set loading to false here, let the auth state change handle it
       return {};
     } catch (error: any) {
       setLoading(false);
@@ -296,31 +258,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log('Attempting to sign up user:', email);
       
-      // Suprimir erros específicos do Supabase no console
-      const originalConsoleError = console.error;
-      console.error = (...args: any[]) => {
-        // Converter todos os argumentos para strings e verificar palavras-chave
-        const errorString = args.map(arg => {
-          if (typeof arg === 'object' && arg !== null) {
-            try {
-              return JSON.stringify(arg);
-            } catch {
-              return String(arg);
-            }
-          }
-          return String(arg);
-        }).join(' ');
-        
-        if (errorString.includes('User already registered') || 
-            errorString.includes('Supabase request failed') ||
-            (errorString.includes('400') && errorString.includes('auth'))) {
-          return; // Não mostrar no console
-        }
-        
-        // Mostrar outros erros normalmente
-        originalConsoleError.apply(console, args);
-      };
-
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -330,9 +267,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           },
         },
       });
-
-      // Restaurar console.error original
-      console.error = originalConsoleError;
 
       console.log('Sign up response:', { data, error });
 
