@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Plus, UserMinus, Users, AlertTriangle, CheckCircle, X, Crown } from 'lucide-react';
+import { Shield, Plus, UserMinus, Users, AlertTriangle, CheckCircle, X, Crown, UserCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -19,9 +19,28 @@ const SuperAdminManager = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [showPromoteModal, setShowPromoteModal] = useState(false);
   const [promoteEmail, setPromoteEmail] = useState('');
+  const [hasAnySuperAdmin, setHasAnySuperAdmin] = useState(true);
 
-  // Verificar se o usuário atual é super admin
-  if (user?.profile?.role !== 'super_admin') {
+  useEffect(() => {
+    checkSuperAdminStatus();
+    loadSuperAdmins();
+  }, []);
+
+  const checkSuperAdminStatus = async () => {
+    try {
+      const { data, error } = await supabase.rpc('has_super_admin');
+      if (!error) {
+        setHasAnySuperAdmin(data);
+      }
+    } catch (error) {
+      console.error('Error checking super admin status:', error);
+    }
+  };
+
+  // Permitir acesso se o usuário for super admin OU se não houver nenhum super admin ainda
+  const canAccess = user?.profile?.role === 'super_admin' || !hasAnySuperAdmin;
+
+  if (!canAccess) {
     return (
       <div className="p-6">
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -33,10 +52,6 @@ const SuperAdminManager = () => {
       </div>
     );
   }
-
-  useEffect(() => {
-    loadSuperAdmins();
-  }, []);
 
   const loadSuperAdmins = async () => {
     try {
@@ -88,6 +103,7 @@ const SuperAdminManager = () => {
         setPromoteEmail('');
         setShowPromoteModal(false);
         await loadSuperAdmins();
+        await checkSuperAdminStatus();
       } else {
         setError(data.message);
       }
@@ -120,6 +136,7 @@ const SuperAdminManager = () => {
       if (data.success) {
         setSuccess(data.message);
         await loadSuperAdmins();
+        await checkSuperAdminStatus();
       } else {
         setError(data.message);
       }
@@ -151,6 +168,21 @@ const SuperAdminManager = () => {
           Promover Usuário
         </button>
       </div>
+
+      {/* First Super Admin Notice */}
+      {!hasAnySuperAdmin && (
+        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg">
+          <div className="flex items-center">
+            <Crown className="h-5 w-5 mr-2" />
+            <div>
+              <p className="font-medium">Primeiro Super Administrador</p>
+              <p className="text-sm">
+                Nenhum super administrador foi configurado ainda. Você pode promover um usuário existente para ser o primeiro super admin.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Messages */}
       {error && (
@@ -206,15 +238,17 @@ const SuperAdminManager = () => {
                 }).length}
               </p>
             </div>
-            <Users className="h-8 w-8 text-green-600" />
+            <UserCheck className="h-8 w-8 text-green-600" />
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Você</p>
-              <p className="text-2xl font-bold text-blue-600">Admin</p>
+              <p className="text-sm text-gray-600">Status do Sistema</p>
+              <p className="text-2xl font-bold text-blue-600">
+                {hasAnySuperAdmin ? 'Configurado' : 'Inicial'}
+              </p>
             </div>
             <Shield className="h-8 w-8 text-blue-600" />
           </div>
@@ -233,7 +267,10 @@ const SuperAdminManager = () => {
         ) : superAdmins.length === 0 ? (
           <div className="text-center py-8">
             <Crown className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">Nenhum super administrador encontrado</p>
+            <p className="text-gray-500 mb-2">Nenhum super administrador configurado</p>
+            <p className="text-sm text-gray-400">
+              Use o botão "Promover Usuário" para criar o primeiro super admin
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -286,26 +323,31 @@ const SuperAdminManager = () => {
       {/* Instructions */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
         <h3 className="text-lg font-semibold text-blue-900 mb-3">Como criar um Super Administrador</h3>
-        <div className="space-y-2 text-sm text-blue-800">
-          <p><strong>Opção 1 - Promover usuário existente:</strong></p>
-          <ol className="list-decimal list-inside space-y-1 ml-4">
-            <li>O usuário deve primeiro se cadastrar normalmente no sistema</li>
-            <li>Use o botão "Promover Usuário" acima</li>
-            <li>Digite o email exato do usuário</li>
-            <li>O usuário será promovido a super administrador</li>
-          </ol>
-          
-          <p className="mt-4"><strong>Opção 2 - Via SQL (para o primeiro super admin):</strong></p>
-          <div className="bg-blue-100 p-3 rounded mt-2 font-mono text-xs">
-            SELECT create_super_admin('email@exemplo.com', 'senha123', 'Nome do Admin');
+        <div className="space-y-3 text-sm text-blue-800">
+          <div>
+            <p className="font-medium mb-2">📋 Passo a passo:</p>
+            <ol className="list-decimal list-inside space-y-1 ml-4">
+              <li>O usuário deve primeiro <strong>se cadastrar normalmente</strong> no sistema</li>
+              <li>Após o cadastro e confirmação do email, use o botão <strong>"Promover Usuário"</strong></li>
+              <li>Digite o <strong>email exato</strong> do usuário cadastrado</li>
+              <li>O usuário será promovido a super administrador imediatamente</li>
+            </ol>
           </div>
           
-          <p className="mt-4"><strong>⚠️ Importante:</strong></p>
-          <ul className="list-disc list-inside space-y-1 ml-4">
-            <li>Sempre deve haver pelo menos 1 super administrador no sistema</li>
-            <li>Super admins podem gerenciar todas as empresas e usuários</li>
-            <li>Apenas super admins podem promover/rebaixar outros usuários</li>
-          </ul>
+          <div className="bg-blue-100 p-3 rounded">
+            <p className="font-medium mb-1">💡 Dica importante:</p>
+            <p>O usuário DEVE existir na base de dados (ter se cadastrado) antes de poder ser promovido. Não é possível criar super admins para emails que não estão cadastrados.</p>
+          </div>
+          
+          <div>
+            <p className="font-medium mb-1">⚠️ Regras de segurança:</p>
+            <ul className="list-disc list-inside space-y-1 ml-4">
+              <li>Sempre deve haver pelo menos 1 super administrador no sistema</li>
+              <li>Super admins podem gerenciar todas as empresas e usuários</li>
+              <li>Apenas super admins podem promover/rebaixar outros usuários</li>
+              <li>Não é possível rebaixar o último super admin do sistema</li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -328,7 +370,14 @@ const SuperAdminManager = () => {
                   required
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  O usuário deve já estar cadastrado no sistema
+                  ⚠️ O usuário deve já estar cadastrado e ter confirmado o email
+                </p>
+              </div>
+              
+              <div className="bg-yellow-50 p-3 rounded-lg">
+                <p className="text-xs text-yellow-800">
+                  <strong>Importante:</strong> Apenas usuários que já se cadastraram no sistema podem ser promovidos. 
+                  Se o email não existir, você receberá um erro.
                 </p>
               </div>
               
