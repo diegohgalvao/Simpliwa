@@ -13,7 +13,8 @@ import {
   ShoppingCart,
   Package,
   UserCheck,
-  Bell
+  Bell,
+  Crown
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -33,7 +34,8 @@ const Sidebar: React.FC = () => {
     { id: 'notificacoes', label: 'Notificações', icon: Bell, path: '/dashboard/notificacoes' },
     ...(user?.profile?.role === 'super_admin' ? [
       { id: 'empresas', label: 'Empresas', icon: Building2, path: '/dashboard/empresas' },
-      { id: 'usuarios', label: 'Usuários', icon: UserCog, path: '/dashboard/usuarios' }
+      { id: 'usuarios', label: 'Usuários', icon: UserCog, path: '/dashboard/usuarios' },
+      { id: 'super-admins', label: 'Super Admins', icon: Crown, path: '/dashboard/super-admins' }
     ] : []),
     { id: 'configuracoes', label: 'Configurações', icon: Settings, path: '/dashboard/configuracoes' }
   ];
@@ -74,10 +76,15 @@ const Sidebar: React.FC = () => {
             <p className="text-sm font-medium text-gray-900 truncate">
               {user?.profile?.name}
             </p>
-            <p className="text-xs text-gray-500 capitalize">
-              {user?.profile?.role === 'super_admin' ? 'Super Admin' : 
-               user?.profile?.role === 'admin' ? 'Administrador' : 'Usuário'}
-            </p>
+            <div className="flex items-center space-x-1">
+              <p className="text-xs text-gray-500 capitalize">
+                {user?.profile?.role === 'super_admin' ? 'Super Admin' : 
+                 user?.profile?.role === 'admin' ? 'Administrador' : 'Usuário'}
+              </p>
+              {user?.profile?.role === 'super_admin' && (
+                <Crown className="h-3 w-3 text-yellow-600" />
+              )}
+            </div>
           </div>
         </div>
 
