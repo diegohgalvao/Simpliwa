@@ -124,17 +124,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             currentCompany = companies[0];
           }
         } else {
-          // For regular users, get their company memberships
+          // For regular users, get their company memberships without nested companies to avoid RLS recursion
           const { data: memberData } = await supabase
             .from('company_members')
-            .select(`
-              *,
-              companies (*)
-            `)
+            .select('*')
             .eq('user_id', supabaseUser.id);
 
-          if (memberData) {
-            companyMembers = memberData;
+          if (memberData && memberData.length > 0) {
+            // Fetch companies separately to avoid RLS recursion
+            const companyIds = memberData.map(member => member.company_id);
+            const { data: companiesData } = await supabase
+              .from('companies')
+              .select('*')
+              .in('id', companyIds);
+
+            // Combine the data
+            companyMembers = memberData.map(member => ({
+              ...member,
+              companies: companiesData?.find(company => company.id === member.company_id)
+            }));
+
             currentCompany = companyMembers[0]?.companies;
           }
         }
