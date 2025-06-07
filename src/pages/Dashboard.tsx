@@ -13,6 +13,7 @@ import Sales from '../components/dashboard/Sales';
 import Products from '../components/dashboard/Products';
 import Team from '../components/dashboard/Team';
 import Notifications from '../components/dashboard/Notifications';
+import BusinessIntelligence from '../components/dashboard/BusinessIntelligence';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -36,7 +37,7 @@ const Dashboard = () => {
             index 
             element={
               <Navigate 
-                to={user?.profile?.role === 'super_admin' ? 'empresas' : 'overview'} 
+                to={user?.profile?.role === 'super_admin' ? 'business-intelligence' : 'overview'} 
                 replace 
               />
             } 
@@ -45,11 +46,12 @@ const Dashboard = () => {
           {/* Super Admin Routes */}
           {user?.profile?.role === 'super_admin' ? (
             <>
-              <Route path="empresas\" element={<Companies />} />
+              <Route path="business-intelligence" element={<BusinessIntelligence />} />
+              <Route path="empresas" element={<Companies />} />
               <Route path="usuarios" element={<Users />} />
               <Route path="configuracoes" element={<Settings />} />
-              {/* Redirect any other routes to empresas for super admin */}
-              <Route path="*" element={<Navigate to="empresas\" replace />} />
+              {/* Redirect any other routes to business-intelligence for super admin */}
+              <Route path="*" element={<Navigate to="business-intelligence" replace />} />
             </>
           ) : (
             <>
@@ -64,7 +66,7 @@ const Dashboard = () => {
               <Route path="notificacoes" element={<Notifications />} />
               <Route path="configuracoes" element={<Settings />} />
               {/* Redirect any other routes to overview for regular users */}
-              <Route path="*" element={<Navigate to="overview\" replace />} />
+              <Route path="*" element={<Navigate to="overview" replace />} />
             </>
           )}
         </Routes>
