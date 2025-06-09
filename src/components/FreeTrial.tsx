@@ -1,26 +1,42 @@
 import React, { useState } from 'react';
-import { ArrowRight, Shield, Clock, Gift } from 'lucide-react';
+import { ArrowRight, Shield, Clock, Gift, Crown, Building2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const FreeTrial = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    company: ''
-  });
+  const navigate = useNavigate();
+  const [selectedPlan, setSelectedPlan] = useState<'starter' | 'professional' | 'enterprise'>('professional');
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handle form submission
-    console.log('Form submitted:', formData);
-    alert('Obrigado! Entraremos em contato em breve para configurar seu teste gratuito.');
-  };
+  const plans = [
+    {
+      id: 'starter' as const,
+      name: 'Starter',
+      price: 97,
+      description: 'Perfeito para pequenos negócios',
+      icon: Building2,
+      features: ['Até 1.000 mensagens/mês', 'Dashboard básico', '1 usuário']
+    },
+    {
+      id: 'professional' as const,
+      name: 'Professional',
+      price: 197,
+      description: 'Ideal para empresas em crescimento',
+      icon: Crown,
+      features: ['Mensagens ilimitadas', 'Dashboard completo', 'Até 5 usuários'],
+      popular: true
+    },
+    {
+      id: 'enterprise' as const,
+      name: 'Enterprise',
+      price: 397,
+      description: 'Para empresas estabelecidas',
+      icon: Shield,
+      features: ['Tudo do Professional', 'Usuários ilimitados', 'Suporte 24/7']
+    }
+  ];
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+  const handleStartTrial = () => {
+    // Navegar para login com parâmetro do plano selecionado
+    navigate(`/login?plan=${selectedPlan}`);
   };
 
   return (
@@ -32,165 +48,137 @@ const FreeTrial = () => {
       </div>
 
       <div className="container mx-auto px-4 lg:px-8 relative">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          {/* Left Column - Content */}
-          <div className="text-white">
-            <div className="inline-flex items-center bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 mb-6">
-              <Gift className="h-4 w-4 mr-2" />
-              <span className="text-sm font-medium">Teste Gratuito - 14 Dias</span>
-            </div>
-            
-            <h2 className="text-4xl lg:text-5xl font-bold mb-6">
-              Experimente o SimpliWa
-              <span className="block text-accent">sem compromisso</span>
-            </h2>
-            
-            <p className="text-xl text-white/90 mb-8 leading-relaxed">
-              Configure sua conta em menos de 5 minutos e comece a gerenciar sua empresa 
-              pelo WhatsApp hoje mesmo. Sem cartão de crédito, sem taxas ocultas.
-            </p>
-
-            {/* Benefits */}
-            <div className="space-y-4 mb-8">
-              {[
-                { icon: Shield, text: 'Sem cartão de crédito necessário' },
-                { icon: Clock, text: '14 dias de acesso completo' },
-                { icon: Gift, text: 'Suporte gratuito durante o teste' }
-              ].map((benefit, index) => (
-                <div key={index} className="flex items-center">
-                  <div className="bg-accent p-2 rounded-lg mr-4">
-                    <benefit.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <span className="text-white/90">{benefit.text}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Social Proof */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6">
-              <div className="flex items-center justify-between text-center">
-                <div>
-                  <div className="text-2xl font-bold text-accent">500+</div>
-                  <div className="text-sm text-white/80">Empresas testaram</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-accent">87%</div>
-                  <div className="text-sm text-white/80">Viraram clientes</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-accent">4.9★</div>
-                  <div className="text-sm text-white/80">Avaliação média</div>
-                </div>
-              </div>
-            </div>
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 mb-6">
+            <Gift className="h-4 w-4 mr-2" />
+            <span className="text-sm font-medium">Teste Gratuito - 14 Dias</span>
           </div>
+          
+          <h2 className="text-4xl lg:text-5xl font-bold text-white mb-6">
+            Escolha seu plano e comece
+            <span className="block text-accent">seu teste gratuito</span>
+          </h2>
+          
+          <p className="text-xl text-white/90 mb-8 leading-relaxed max-w-3xl mx-auto">
+            Todos os planos incluem 14 dias de teste completo. Sem cartão de crédito, 
+            sem compromisso. Você será o administrador da sua empresa.
+          </p>
+        </div>
 
-          {/* Right Column - Form */}
-          <div className="bg-white rounded-3xl p-8 shadow-2xl">
-            <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                Comece seu teste gratuito
-              </h3>
-              <p className="text-gray-600">
-                Preencha os dados abaixo e receba suas credenciais por WhatsApp
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                  Nome completo *
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  required
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors"
-                  placeholder="Seu nome completo"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email corporativo *
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors"
-                  placeholder="seu@email.com"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
-                  WhatsApp *
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  name="phone"
-                  required
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors"
-                  placeholder="(11) 99999-9999"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-2">
-                  Nome da empresa *
-                </label>
-                <input
-                  type="text"
-                  id="company"
-                  name="company"
-                  required
-                  value={formData.company}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent transition-colors"
-                  placeholder="Nome da sua empresa"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-secondary text-white py-4 rounded-lg font-bold text-lg hover:bg-opacity-90 transition-all transform hover:scale-105 flex items-center justify-center group"
+        {/* Plan Selection */}
+        <div className="grid md:grid-cols-3 gap-8 mb-12 max-w-5xl mx-auto">
+          {plans.map((plan) => {
+            const Icon = plan.icon;
+            return (
+              <div
+                key={plan.id}
+                onClick={() => setSelectedPlan(plan.id)}
+                className={`relative bg-white rounded-2xl p-6 cursor-pointer transition-all transform hover:scale-105 ${
+                  selectedPlan === plan.id ? 'ring-4 ring-accent shadow-2xl' : 'shadow-lg'
+                } ${plan.popular ? 'border-2 border-accent' : ''}`}
               >
-                Começar Teste Gratuito
-                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-              </button>
+                {plan.popular && (
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                    <div className="bg-accent text-primary px-4 py-1 rounded-full text-sm font-bold">
+                      Mais Popular
+                    </div>
+                  </div>
+                )}
 
-              <p className="text-center text-sm text-gray-500">
-                Ao se cadastrar, você concorda com nossos{' '}
-                <a href="#" className="text-secondary hover:underline">Termos de Uso</a>
-                {' '}e{' '}
-                <a href="#" className="text-secondary hover:underline">Política de Privacidade</a>
-              </p>
-            </form>
+                <div className="text-center">
+                  <div className="bg-primary/10 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <Icon className="h-6 w-6 text-primary" />
+                  </div>
+                  
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">{plan.name}</h3>
+                  <p className="text-gray-600 text-sm mb-4">{plan.description}</p>
+                  
+                  <div className="flex items-baseline justify-center mb-4">
+                    <span className="text-sm text-gray-500">R$</span>
+                    <span className="text-3xl font-bold text-gray-900">{plan.price}</span>
+                    <span className="text-gray-500">/mês</span>
+                  </div>
 
-            {/* Trust Indicators */}
-            <div className="mt-8 pt-6 border-t border-gray-200">
-              <div className="flex items-center justify-center space-x-6 text-sm text-gray-500">
-                <div className="flex items-center">
-                  <Shield className="h-4 w-4 mr-1" />
-                  <span>100% Seguro</span>
-                </div>
-                <div className="flex items-center">
-                  <Clock className="h-4 w-4 mr-1" />
-                  <span>Setup em 5min</span>
+                  <ul className="text-left space-y-2 mb-4">
+                    {plan.features.map((feature, index) => (
+                      <li key={index} className="text-sm text-gray-600 flex items-center">
+                        <div className="w-1.5 h-1.5 bg-secondary rounded-full mr-2 flex-shrink-0"></div>
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className={`w-6 h-6 rounded-full border-2 mx-auto ${
+                    selectedPlan === plan.id 
+                      ? 'bg-secondary border-secondary' 
+                      : 'border-gray-300'
+                  }`}>
+                    {selectedPlan === plan.id && (
+                      <div className="w-2 h-2 bg-white rounded-full mx-auto mt-1"></div>
+                    )}
+                  </div>
                 </div>
               </div>
+            );
+          })}
+        </div>
+
+        {/* Selected Plan Info */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 max-w-2xl mx-auto mb-8">
+          <div className="text-center text-white">
+            <h3 className="text-2xl font-bold mb-4">
+              Plano {plans.find(p => p.id === selectedPlan)?.name} Selecionado
+            </h3>
+            <div className="grid md:grid-cols-3 gap-6 mb-6">
+              <div className="flex items-center justify-center">
+                <Shield className="h-5 w-5 mr-2" />
+                <span className="text-sm">14 dias grátis</span>
+              </div>
+              <div className="flex items-center justify-center">
+                <Clock className="h-5 w-5 mr-2" />
+                <span className="text-sm">Sem cartão</span>
+              </div>
+              <div className="flex items-center justify-center">
+                <Crown className="h-5 w-5 mr-2" />
+                <span className="text-sm">Você será o Admin</span>
+              </div>
             </div>
+            <p className="text-white/90 text-sm">
+              Após o cadastro, você será o administrador da sua empresa com acesso total 
+              para gerenciar equipe, vendas, clientes e relatórios.
+            </p>
           </div>
+        </div>
+
+        {/* CTA Button */}
+        <div className="text-center">
+          <button
+            onClick={handleStartTrial}
+            className="bg-accent text-primary px-8 py-4 rounded-full font-bold text-lg hover:bg-white transition-all transform hover:scale-105 inline-flex items-center group"
+          >
+            Começar Teste Gratuito
+            <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+          </button>
+          
+          <p className="text-white/80 text-sm mt-4">
+            Sem compromisso • Cancele quando quiser • Suporte incluído
+          </p>
+        </div>
+
+        {/* Benefits */}
+        <div className="grid md:grid-cols-3 gap-8 mt-16 max-w-4xl mx-auto">
+          {[
+            { icon: Shield, text: 'Sem cartão de crédito necessário' },
+            { icon: Clock, text: '14 dias de acesso completo' },
+            { icon: Crown, text: 'Você será o admin da empresa' }
+          ].map((benefit, index) => (
+            <div key={index} className="text-center text-white">
+              <div className="bg-accent p-3 rounded-full w-fit mx-auto mb-4">
+                <benefit.icon className="h-6 w-6 text-primary" />
+              </div>
+              <p className="text-white/90">{benefit.text}</p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
